@@ -164,3 +164,4 @@ cython_debug/
 Makefile
 sync-to-idun.sh
 .python-version
+.vscode
