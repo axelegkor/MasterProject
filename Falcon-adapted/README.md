@@ -1,3 +1,6 @@
+# Changes done
+Converted from conda to venv
+
 # Fine-grained Classes and How to Find Them
 
 [Matej Grcić](https://matejgrcic.github.io/), [Artyom Gadetsky](http://agadetsky.github.io), [Maria Brbić](https://brbiclab.epfl.ch/team/)
