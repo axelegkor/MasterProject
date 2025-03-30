@@ -165,3 +165,4 @@ Makefile
 sync-to-idun.sh
 .python-version
 .vscode
+slurm-scripts

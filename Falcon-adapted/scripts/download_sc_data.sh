@@ -11,7 +11,7 @@ if [ -d "$1" ]; then
   fi
   export PBMC_ROOT=$1/challenge_pbmc_cellxgene_230223.h5ad
   echo $PBMC_ROOT
-  python3 preprocess_sc_data.py --cfg_file configs/single_cell/pbmc.yaml
+  python3 preprocess_sc_data.py --cfg_file configs/single_cell/coarse2fine/pbmc.yaml
 else
   echo "Output directory does not exist!"
   exit 1
