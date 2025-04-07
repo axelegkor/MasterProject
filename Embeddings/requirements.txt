@@ -1,0 +1,7 @@
+sentence-transformers==2.2.2
+huggingface_hub==0.10.1
+pandas
+transformers
+numpy
+torch
+tqdm
