@@ -1,0 +1,1 @@
+from .fake_news_bert import FakeNewsBertData

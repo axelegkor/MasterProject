@@ -1,0 +1,56 @@
+DATASET:
+    NAME: "FakeNews"
+    MULTIVIEW_NUM: 2
+    MULTIVIEW: True
+    RETURN_INDEX: False
+
+MODEL:
+    BACKBONE_NAME: "MLP"
+    PRETRAINED: False
+    PRECISION: "fp32"
+    INPUT_DIM: 384       # all-MiniLM-L6-v2 outputs 384-dim embeddings
+    HIDDEN_DIM: 256
+    OUTPUT_DIM: 128
+    NUM_LAYERS: 3
+    NUM_CLASSES: None
+    HEAD_TYPE: "Linear"
+    FROZEN: False
+
+SOLVER:
+    LR_SCHEDULER:
+        NAME: 'MultiStepLR'
+        GAMMA: 0.1
+        STEPS: [6, 8]
+
+    OPTIMIZER:
+        NAME: "SGD"
+        BASE_LR: 0.01
+        WEIGHT_DECAY: 0.0
+        NESTEROV: False
+        MOMENTUM: 0.9
+
+    LOSS:
+        LAMBDA_1: 0.5
+        LAMBDA_2: 0.5
+        LAMBDA_3: 0.5
+        TEMP: 0.9
+
+    DISCRETE_OPTIM:
+        TIME_LIMIT: 30
+        BETA_REG: 0.005
+        SOLVE_EVERY: 30
+
+    MAX_EPOCHS: 10
+    BATCH_SIZE: 128
+    CHECKPOINT_PERIOD: 5
+    EVAL_PERIOD: 1
+    DEVICES: 1
+    SOFT_LABELS_EPOCHS: 3
+
+DATALOADER:
+    NUM_WORKERS: 2
+    PIN_MEMORY: True
+
+NEIGHBORS: None
+
+OUTPUT_DIR: None

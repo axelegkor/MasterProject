@@ -1,19 +1,12 @@
-from datasets import SingleCellData
+from datasets import FakeNewsBertData
 from datasets.utils.wrappers import NeighborsWrapper
 
-
-# single cell data uses transductive setting
-def construct_single_cell_c2f_splits(cfg):
-    assert (
-        "_preprocessed.pth" in cfg.DATASET.DATAROOT
-    ), "Please use the preprocessed file for single cell data."
+def construct_fake_news_splits(cfg):
     file = cfg.DATASET.DATAROOT
 
-    train_ds = SingleCellData(file, two_views=cfg.DATASET.MULTIVIEW)
-
-    val_ds = SingleCellData(file)
-
-    test_ds = SingleCellData(file)
+    train_ds = FakeNewsBertData(file, two_views=cfg.DATASET.MULTIVIEW)
+    val_ds = FakeNewsBertData(file)
+    test_ds = FakeNewsBertData(file)
 
     if cfg.NEIGHBORS is not None:
         train_ds = NeighborsWrapper(train_ds, cfg.NEIGHBORS, 5)
@@ -21,6 +14,7 @@ def construct_single_cell_c2f_splits(cfg):
     print(
         f"Number of training samples: {len(train_ds)}, number of validation samples: {len(val_ds)}, number of test samples: {len(test_ds)}"
     )
+
     fine_classes = (
         train_ds.num_fine
         if hasattr(train_ds, "num_fine")
@@ -31,4 +25,5 @@ def construct_single_cell_c2f_splits(cfg):
         if hasattr(train_ds, "num_coarse")
         else train_ds.dataset.num_coarse
     )
+
     return train_ds, val_ds, test_ds, fine_classes, coarse_classes

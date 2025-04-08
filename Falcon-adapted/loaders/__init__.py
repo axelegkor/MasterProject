@@ -31,6 +31,9 @@ def construct_coarse2fine_loader(cfg):
     elif cfg.DATASET.NAME == 'Nasal':
         from .single_cell import construct_single_cell_c2f_splits
         train, val, test, fine_classes, coarse_classes = construct_single_cell_c2f_splits(cfg)
+    elif cfg.DATASET.NAME == 'FakeNews':
+        from .fake_news_bert import construct_fake_news_splits
+        train, val, test, fine_classes, coarse_classes = construct_fake_news_splits(cfg)
 
     else:
         raise NotImplementedError('Dataset not implemented: {}'.format(cfg.DATASET.NAME))
