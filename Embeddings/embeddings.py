@@ -5,9 +5,9 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
-datasetPath = "../../../work/axelle/Datasets-original/KaggleFakeNews/train.csv"
+datasetPath = "/cluster/work/axelle/Datasets-original/KaggleFakeNews/train.csv"
 outputPath = (
-    "../../../work/axelle/Datasets-embedded/KaggleFakeNews/slices-512-256-v1.pt"
+    "/cluster/work/axelle/Datasets-embedded/KaggleFakeNews/slices-512-256-v1.pt"
 )
 
 device = "cuda" if torch.cuda.is_available() else "cpu"

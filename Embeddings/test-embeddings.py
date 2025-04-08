@@ -1,7 +1,7 @@
 import pandas
 from sentence_transformers import SentenceTransformer
 
-datasetPath = "../../../work/axelle/Datasets-original/KaggleFakeNews/train.csv"
+datasetPath = "/cluster/work/axelle/Datasets-original/KaggleFakeNews/train.csv"
 
 # === Load CSV ===
 df = pandas.read_csv(datasetPath)
