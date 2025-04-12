@@ -5,6 +5,10 @@ set -o pipefail
 
 echo "🔧 Starting Falcon local setup..."
 
+pip install --upgrade pip
+pip install --no-deps -r requirements.txt
+
+
 # Clone robustness locally into Falcon-adapted/
 if [ ! -d robustness ]; then
   echo "📦 Cloning robustness..."
@@ -17,7 +21,7 @@ if [ ! -d GMatch4py ]; then
   echo "📦 Cloning GMatch4py..."
   git clone https://github.com/jacquesfize/GMatch4py GMatch4py
 fi
-pip install -e ./GMatch4py
+pip install --no-build-isolation -e ./GMatch4py
 
 # Install any additional requirements
 echo "📦 Installing scikit-misc..."
