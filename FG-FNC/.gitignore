@@ -1,0 +1,5 @@
+venv
+sync-to-idun.sh
+Makefile
+slurm-scripts
+.vscode

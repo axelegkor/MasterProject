@@ -5,7 +5,7 @@ datasetPath = "/cluster/work/axelle/Datasets-original/KaggleFakeNews/train.csv"
 
 # === Load CSV ===
 df = pandas.read_csv(datasetPath)
-sample = df.head(5).copy()
+sample = df.head(20).copy()
 
 # === Combine title + text into one string ===
 sample["full_text"] = (
@@ -21,5 +21,5 @@ embeddings = model.encode(sample["full_text"].tolist(), convert_to_numpy=True)
 # === Print Results ===
 for i, (text, emb) in enumerate(zip(sample["full_text"], embeddings)):
     print(
-        f"\nExample {i+1}:\nText: {text[:100]}...\nEmbedding shape: {emb.shape}\nEmbedding (first 5 values): {emb[:5]}"
+        f"\nExample {i+1}:\nText: {text[:100]}...\nEmbedding shape: {emb.shape}\nEmbedding (first 5 values): {emb[:20]}"
     )
