@@ -1,9 +1,9 @@
 import pandas as pd
+import config
 
-
-DATASET = "Liar"
-FILENAME = "train"
-INPUT_FILE_TYPE = "tsv"  # or "csv"
+DATASET = config.DATASET
+FILENAME = config.FILENAME
+INPUT_FILE_TYPE = config.INPUT_FILE_TYPE
 
 input_path = "/cluster/work/axelle/Datasets-original/" + DATASET + "/" + FILENAME + "." + INPUT_FILE_TYPE
 output_path = "/cluster/work/axelle/Datasets-preprocessed/" + DATASET + "/" + FILENAME + ".csv"
