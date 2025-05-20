@@ -9,6 +9,7 @@ rsync -av --delete \
   --exclude="*.pyc" \
   --exclude=".git" \
   --exclude="Makefile" \
+  --exclude="venv/" \
   --exclude="sync-to-idun.sh" \
   ~/dev/MasterProject/FG-FNC/ \
   axelle@idun.hpc.ntnu.no:/cluster/home/axelle/FG-FNC

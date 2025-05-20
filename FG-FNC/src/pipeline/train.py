@@ -10,10 +10,13 @@ DATA_PATH = "data/training_data.csv"
 NUM_CLASSES = 5
 EMBEDDING_DIM = 384
 INITIALISATION_METHOD = "random"  # Options: "random", "informed"
-POPULATION_SIZE = 100
+POPULATION_SIZE = 0.01 # Initial population size as a fraction of the training data size
 NUM_GENERATIONS = 1000
 REPLACEMENT_RATION_MAX = 0.6  # The replacement ratio in the first generation
 REPLACEMENT_RATION_MIN = 0.01  # The replacement ratio in the last generation
+LEAKING_ENABLE = True  # Whether to enable leaking
+LEAKING_FREQUENCY = 10  # Frequency of leaking
+TOTAL_LEAKING = 0.5  # Total leaking ration compared to the population size
 ERROR_SCALING = (
     2  # Scaling factor for how much a false positive affects the correctness score
 )
