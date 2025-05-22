@@ -16,12 +16,20 @@ datasetPath = (
     "/cluster/work/axelle/Datasets-preprocessed/" + DATASET + "/" + FILENAME + ".csv"
 )
 
-nw = ""
+
 if not WHITENING:
-    nw = "_nw"
-    
+    whitening_str = "nw"
+else:
+    whitening_str = str(DIMENSIONALITY_REDUCTION)
+
 outputPath = (
-    "/cluster/work/axelle/Datasets-embedded/" + DATASET + "/" + FILENAME + "_" + str(DIMENSIONALITY_REDUCTION) + nw + ".pt"
+    "/cluster/work/axelle/Datasets-embedded/"
+    + DATASET
+    + "/"
+    + whitening_str
+    + "/"
+    + FILENAME
+    + ".pt"
 )
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -86,16 +94,20 @@ def embed(text, window_size=512, stride=256) -> np.ndarray:
         weighted_embedding = np.average(chunk_embeddings, axis=0, weights=weights)
         return weighted_embedding
 
-def compute_whitening(embeddings: np.ndarray, k: int = None, eps: float = 1e-10) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+def compute_whitening(
+    embeddings: np.ndarray, k: int = None, eps: float = 1e-10
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     mu = np.mean(embeddings, axis=0)
     cov = np.cov(embeddings - mu, rowvar=False, bias=True)
     U, S, _ = np.linalg.svd(cov)
     if k is not None:
         U = U[:, :k]
         S = S[:k]
-    w= np.dot(U, np.diag(1.0 / np.sqrt(S + eps)))
+    w = np.dot(U, np.diag(1.0 / np.sqrt(S + eps)))
     whitened = np.dot(embeddings - mu, w)
     return whitened, mu, w
+
 
 df = pandas.read_csv(datasetPath)
 
@@ -119,8 +131,10 @@ for _, row in tqdm(df.iterrows(), total=len(df), desc="Embedding articles"):
         embeddings.append(embedding)
         labels.append(label)
 
-if WHITENING:        
-    whitened, mu, w = compute_whitening(np.array(embeddings), k=DIMENSIONALITY_REDUCTION)
+if WHITENING:
+    whitened, mu, w = compute_whitening(
+        np.array(embeddings), k=DIMENSIONALITY_REDUCTION
+    )
     embeddings = whitened
 
 

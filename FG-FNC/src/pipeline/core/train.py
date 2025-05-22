@@ -1,70 +1,10 @@
 import numpy as np
 from typing import List, Dict, Tuple
-from core.antigen import Antigen
-from core.antibody import Antibody
+from classes.antigen import Antigen
+from classes.antibody import Antibody
 import uuid
 import copy
 import torch
-import config
-
-# Hyperparameters
-DATASET = "Liar"
-FILENAME = "train"
-DIMENSIONALITY_REDUCTION = 128
-WHITENING = True
-
-NUM_CLASSES = 5
-INITIALISATION_METHOD = "random"  # Options: "random", "informed"
-POPULATION_SIZE = (
-    0.01  # Initial population size as a fraction of the training data size
-)
-NUM_GENERATIONS = 1000
-REPLACEMENT_RATIO_MAX = 0.6  # The replacement ratio in the first generation
-REPLACEMENT_RATIO_MIN = 0.01  # The replacement ratio in the last generation
-LEAKING_FREQUENCY = 10  # Frequency of leaking
-TOTAL_LEAKING = 0.5  # Total leaking ratio compared to the population size
-ERROR_SCALING = (
-    2  # Scaling factor for how much a false positive affects the correctness score
-)
-CORRECTNESS_WEIGHT = 2.5  # Weight of the correctness part of the fitness score
-COVERAGE_WEIGHT = 1.0  # Weight of the coverage part of the fitness score
-CORRECTNESS_TYPE = "continuous"  # Options: "continuous", "binary"
-CORRECTNESS_EXPONENT = 0.5  # Exponent for the calculation of continuous correctness
-UNIQUENESS_WEIGHT = 1.2  # Weight of the uniqueness part of the fitness score
-MIN_FITNESS_SCALING = 0.2  # Minimum scaling factor for the fitness of an antibody
-MAX_FITNESS_SCALING = 2  # Maximum scaling factor for the fitness of an antibody
-NUM_CLONES = 10  # Number of clones to create for each antibody
-CENTER_MUTATION_RATE = 1  # Probability of mutating the center of an antibody
-RADII_MUTATION_RATE = 1  # Probability of mutating the radii of an antibody
-MULTIPLIER_MUTATION_RATE = 1  # Probability of mutating the multiplier of an antibody
-CENTER_MUTATION_INTENSITY = 0.02  # Intensity of the center mutations, relative to the mean norm of the population
-CENTER_MUTATION_DIMENSIONS = (
-    0.1  # Portion of dimensions to mutate for the center mutations
-)
-RADII_MUTATION_INTENSITY = 1  # Intensity of the radii mutations
-MIN_RADII_MUTATION = (
-    0.2  # Minimum scaling factor for the radii of an antibody, must be > 0
-)
-MAX_RADII_MUTATION = 5  # Maximum scaling factor for the radii of an antibody
-MULTIPLIER_MUTATION_INTENSITY = 0.2  # Intensity of the multiplier mutations
-MULTIPLIER_MUTATION_DIMENSIONS = (
-    0.1  # Portion of dimensions to mutate for the multiplier mutations
-)
-
-nw = ""
-if not WHITENING:
-    nw = "_nw"
-
-input_file_path = (
-    "/cluster/work/axelle/Datasets-embedded/"
-    + DATASET
-    + "/"
-    + FILENAME
-    + "_"
-    + str(DIMENSIONALITY_REDUCTION)
-    + nw
-    + ".pt"
-)
 
 
 # Function to load the training data into a list of Antigen objects
@@ -117,12 +57,13 @@ def random_initialisation(
     mean: np.ndarray,
     std: float,
     embedding_dim: int,
+    num_classes: int,
 ) -> List[Antibody]:
     rng = np.random.default_rng()
     antibodies = []
     for _ in range(population_size):
         center = rng.normal(mean, std, size=embedding_dim)
-        label = rng.integers(0, NUM_CLASSES)
+        label = rng.integers(0, num_classes)
         antibody = Antibody(
             id=str(uuid.uuid4()),
             center=center,
@@ -131,9 +72,11 @@ def random_initialisation(
             label=label,
         )
         antibodies.append(antibody)
+        
+    return antibodies
 
 
-def informed_initialisation(
+def antigen_based_initialisation(
     antigens: List[Antigen],
     population_size: int,
     coverage: np.ndarray,
@@ -168,14 +111,23 @@ def initialise_population(
     mean: np.ndarray,
     std: float,
     embedding_dim: int,
+    num_classes: int,
 ) -> List[Antibody]:
     if initialisation_method == "random":
         return random_initialisation(
-            antigens, population_size, mean, std, embedding_dim
+            antigens=antigens,
+            population_size=population_size,
+            mean=mean,
+            std=std,
+            embedding_dim=embedding_dim,
+            num_classes=num_classes,
         )
-    elif initialisation_method == "informed":
-        return informed_initialisation(
-            antigens, population_size, coverage, embedding_dim
+    elif initialisation_method == "antigen_based":
+        return antigen_based_initialisation(
+            antigens=antigens,
+            population_size=population_size,
+            coverage=coverage,
+            embedding_dim=embedding_dim,
         )
     else:
         raise ValueError(f"Unknown initialisation method: {initialisation_method}")
@@ -194,7 +146,13 @@ def shared_count(antibodies: List[Antibody], antigens: List[Antigen]) -> Dict[st
 
 # Function to calculate the correctness of antibodies
 def fitness_of_antibodies_continuous_correctness(
-    antibodies: List[Antibody], antigens: List[Antigen]
+    antibodies: List[Antibody],
+    antigens: List[Antigen],
+    num_classes: int,
+    correctness_exponent: float,
+    correctness_weight: float,
+    coverage_weight: float,
+    uniqueness_weight: float,
 ) -> Dict[str, float]:
     fitness_scores = {}
     shared_counts = shared_count(antibodies, antigens)
@@ -213,8 +171,8 @@ def fitness_of_antibodies_continuous_correctness(
                 shared_affinity += 1 / shared_counts[antigen.id]
                 correctness_count += (
                     1
-                    - (abs(antigen.label - antibody.label) / (NUM_CLASSES - 1))
-                    ** CORRECTNESS_EXPONENT
+                    - (abs(antigen.label - antibody.label) / (num_classes - 1))
+                    ** correctness_exponent
                 )
             else:
                 if antibody.label == antigen.label:
@@ -231,9 +189,9 @@ def fitness_of_antibodies_continuous_correctness(
         )
         uniqueness = shared_affinity / true_positives if true_positives > 0 else 0
         fitness = (
-            (CORRECTNESS_WEIGHT * correctness)
-            + (COVERAGE_WEIGHT * coverage)
-            + (UNIQUENESS_WEIGHT * uniqueness)
+            (correctness_weight * correctness)
+            + (coverage_weight * coverage)
+            + (uniqueness_weight * uniqueness)
         )
         fitness_scores[antibody.id] = fitness
     return fitness_scores
@@ -241,7 +199,12 @@ def fitness_of_antibodies_continuous_correctness(
 
 # Function to calculate the correctness of antibodies
 def fitness_of_antibodies_binary_correctness(
-    antibodies: List[Antibody], antigens: List[Antigen]
+    antibodies: List[Antibody],
+    antigens: List[Antigen],
+    error_scaling: float,
+    correctness_weight: float,
+    coverage_weight: float,
+    uniqueness_weight: float,
 ) -> Dict[str, float]:
     fitness_scores = {}
     shared_counts = shared_count(antibodies, antigens)
@@ -261,7 +224,7 @@ def fitness_of_antibodies_binary_correctness(
                 if antibody.label == antigen.label:
                     false_negatives += 1
         correctness = (
-            (true_positives - (false_positives * ERROR_SCALING))
+            (true_positives - (false_positives * error_scaling))
             / (true_positives + false_positives)
             if (true_positives + false_positives) > 0
             else 0
@@ -273,21 +236,44 @@ def fitness_of_antibodies_binary_correctness(
         )
         uniqueness = shared_affinity / true_positives if true_positives > 0 else 0
         fitness = (
-            (CORRECTNESS_WEIGHT * correctness)
-            + (COVERAGE_WEIGHT * coverage)
-            + (UNIQUENESS_WEIGHT * uniqueness)
+            (correctness_weight * correctness)
+            + (coverage_weight * coverage)
+            + (uniqueness_weight * uniqueness)
         )
         fitness_scores[antibody.id] = fitness
     return fitness_scores
 
 
 def fitness_of_antibodies(
-    antibodies: List[Antibody], antigens: List[Antigen], correctness_type: str
+    antibodies: List[Antibody],
+    antigens: List[Antigen],
+    correctness_type: str,
+    correctness_weight: float,
+    coverage_weight: float,
+    uniqueness_weight: float,
+    num_classes: int,
+    correctness_exponent: float,
+    error_scaling: float,
 ) -> Dict[str, float]:
     if correctness_type == "continuous":
-        return fitness_of_antibodies_continuous_correctness(antibodies, antigens)
+        return fitness_of_antibodies_continuous_correctness(
+            antibodies,
+            antigens,
+            num_classes=num_classes,
+            correctness_exponent=correctness_exponent,
+            correctness_weight=correctness_weight,
+            coverage_weight=coverage_weight,
+            uniqueness_weight=uniqueness_weight,
+        )
     elif correctness_type == "binary":
-        return fitness_of_antibodies_binary_correctness(antibodies, antigens)
+        return fitness_of_antibodies_binary_correctness(
+            antibodies,
+            antigens,
+            error_scaling=error_scaling,
+            correctness_weight=correctness_weight,
+            coverage_weight=coverage_weight,
+            uniqueness_weight=uniqueness_weight,
+        )
     else:
         raise ValueError(f"Unknown correctness type: {correctness_type}")
 
@@ -299,20 +285,27 @@ def center_mutation(
     center_std: float,
     rng: np.random.Generator,
     embedding_dim: int,
+    center_mutation_intensity: float,
+    center_mutation_dimensions: float,
 ) -> None:
-    intensity = fitness_scaling * CENTER_MUTATION_INTENSITY * center_std
+    intensity = fitness_scaling * center_mutation_intensity * center_std
     movement = np.zeros(embedding_dim)
-    dim_mask = rng.random(embedding_dim) < CENTER_MUTATION_DIMENSIONS
+    dim_mask = rng.random(embedding_dim) < center_mutation_dimensions
     movement[dim_mask] = rng.normal(0, intensity, size=np.sum(dim_mask))
     antibody.center_mutation(movement)
 
 
 # Function that performs radii mutation on an antibody
 def radii_mutation(
-    antibody: Antibody, fitness_scaling: float, rng: np.random.Generator
+    antibody: Antibody,
+    fitness_scaling: float,
+    rng: np.random.Generator,
+    radii_mutation_intensity: float,
+    min_radii_mutation: float,
+    max_radii_mutation: float,
 ) -> None:
-    intensity = fitness_scaling * RADII_MUTATION_INTENSITY
-    change = np.clip(rng.normal(1, intensity), MIN_RADII_MUTATION, MAX_RADII_MUTATION)
+    intensity = fitness_scaling * radii_mutation_intensity
+    change = np.clip(rng.normal(1, intensity), min_radii_mutation, max_radii_mutation)
     antibody.radii_mutation(change)
 
 
@@ -322,10 +315,12 @@ def multiplier_mutation(
     fitness_scaling: float,
     rng: np.random.Generator,
     embedding_dim: int,
+    multiplier_mutation_intensity: float,
+    multiplier_mutation_dimensions: float,
 ) -> None:
-    intensity = fitness_scaling * MULTIPLIER_MUTATION_INTENSITY
+    intensity = fitness_scaling * multiplier_mutation_intensity
     change = np.ones(embedding_dim)
-    dim_mask = rng.random(embedding_dim) < MULTIPLIER_MUTATION_DIMENSIONS
+    dim_mask = rng.random(embedding_dim) < multiplier_mutation_dimensions
     change[dim_mask] = rng.normal(1, intensity, size=np.sum(dim_mask))
     antibody.multiplier_mutation(change)
 
@@ -338,6 +333,26 @@ def crowding(
     center_std: float,
     antigens: List[Antigen],
     embedding_dim: int,
+    center_mutation_intensity: float,
+    center_mutation_dimensions: float,
+    radii_mutation_intensity: float,
+    min_radii_mutation: float,
+    max_radii_mutation: float,
+    multiplier_mutation_intensity: float,
+    multiplier_mutation_dimensions: float,
+    min_fitness_scaling: float,
+    max_fitness_scaling: float,
+    num_clones: int,
+    center_mutation_rate: float,
+    radii_mutation_rate: float,
+    multiplier_mutation_rate: float,
+    correctness_type: str,
+    correctness_weight: float,
+    coverage_weight: float,
+    uniqueness_weight: float,
+    num_classes: int,
+    correctness_exponent: float,
+    error_scaling: float,
 ) -> List[Antibody]:
     antibodies_eligible = antibodies.copy()
     updated_antibodies = antibodies.copy()
@@ -350,31 +365,63 @@ def crowding(
         antibodies_eligible.pop(index)
         fitness = fitness_scores[antibody.id]
         fitness_scaling = np.clip(
-            avg_fitness / (fitness + 1e-8), MIN_FITNESS_SCALING, MAX_FITNESS_SCALING
+            avg_fitness / (fitness + 1e-8), min_fitness_scaling, max_fitness_scaling
         )
         clones = [antibody]
-        for i in range(NUM_CLONES):
+        for _ in range(num_clones):
             clone = copy.deepcopy(antibody)
             clone.id = str(uuid.uuid4())
             probabilities = [
-                CENTER_MUTATION_RATE,
-                RADII_MUTATION_RATE,
-                MULTIPLIER_MUTATION_RATE,
+                center_mutation_rate,
+                radii_mutation_rate,
+                multiplier_mutation_rate,
             ] / np.sum(
-                [CENTER_MUTATION_RATE, RADII_MUTATION_RATE, MULTIPLIER_MUTATION_RATE]
+                [center_mutation_rate, radii_mutation_rate, multiplier_mutation_rate]
             )
             mutation_type = rng.choice(
                 ["center", "radii", "multiplier"], p=probabilities
             )
             if mutation_type == "center":
-                center_mutation(clone, fitness_scaling, center_std, rng, embedding_dim)
+                center_mutation(
+                    antibody=clone,
+                    fitness_scaling=fitness_scaling,
+                    center_std=center_std,
+                    rng=rng,
+                    embedding_dim=embedding_dim,
+                    center_mutation_intensity=center_mutation_intensity,
+                    center_mutation_dimensions=center_mutation_dimensions,
+                )
             elif mutation_type == "radii":
-                radii_mutation(clone, fitness_scaling, rng)
+                radii_mutation(
+                    antibody=clone,
+                    fitness_scaling=fitness_scaling,
+                    rng=rng,
+                    radii_mutation_intensity=radii_mutation_intensity,
+                    min_radii_mutation=min_radii_mutation,
+                    max_radii_mutation=max_radii_mutation,
+                )
             elif mutation_type == "multiplier":
-                multiplier_mutation(clone, fitness_scaling, rng, embedding_dim)
+                multiplier_mutation(
+                    antibody=clone,
+                    fitness_scaling=fitness_scaling,
+                    rng=rng,
+                    embedding_dim=embedding_dim,
+                    multiplier_mutation_intensity=multiplier_mutation_intensity,
+                    multiplier_mutation_dimensions=multiplier_mutation_dimensions,
+                )
 
             clones.append(clone)
-        clone_fitness_scores = fitness_of_antibodies(clones, antigens)
+        clone_fitness_scores = fitness_of_antibodies(
+            antibodies=clones,
+            antigens=antigens,
+            correctness_type=correctness_type,
+            correctness_weight=correctness_weight,
+            coverage_weight=coverage_weight,
+            uniqueness_weight=uniqueness_weight,
+            num_classes=num_classes,
+            correctness_exponent=correctness_exponent,
+            error_scaling=error_scaling,
+        )
         best_clone_id = max(clone_fitness_scores, key=clone_fitness_scores.get)
         best_clone = next(clone for clone in clones if clone.id == best_clone_id)
         updated_antibodies[index] = best_clone
@@ -390,6 +437,7 @@ def coverage(antibodies: List[Antibody], antigens: List[Antigen]) -> np.ndarray:
                 coverage[i] += 1
     return coverage
 
+
 def accuracy(antibody: Antibody, antigens: List[Antigen]) -> float:
     positives = 0
     true_positives = 0
@@ -402,7 +450,21 @@ def accuracy(antibody: Antibody, antigens: List[Antigen]) -> float:
 
 
 # Main function to run the training process
-def main():
+def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
+    if not config.WHITENING:
+        whitening_str = "nw"
+    else:
+        whitening_str = str(config.DIMENSIONALITY_REDUCTION)
+
+    input_file_path = (
+        "/cluster/work/axelle/Datasets-embedded/"
+        + config.DATASET
+        + "/"
+        + whitening_str
+        + "/"
+        + "train"
+        + ".pt"
+    )
     # Load training data
     antigens, embedding_dim, mu, w = load_training_data(input_file_path)
 
@@ -412,31 +474,43 @@ def main():
 
     # Initialise population of antibodies
     population = initialise_population(
-        antigens,
-        POPULATION_SIZE,
-        INITIALISATION_METHOD,
-        np.ones(len(antigens)),
-        mean,
-        std,
-        embedding_dim,
+        antigens=antigens,
+        population_size=config.POPULATION_SIZE * len(antigens),
+        initialisation_method=config.INITIALISATION_METHOD,
+        coverage=np.ones(len(antigens)),
+        mean=mean,
+        std=std,
+        embedding_dim=embedding_dim,
+        num_classes=config.NUM_CLASSES,
     )
 
-    total_leaking_amount = int(round(POPULATION_SIZE * TOTAL_LEAKING))
+    total_leaking_amount = int(round(config.POPULATION_SIZE * config.TOTAL_LEAKING))
 
     leaking_per_generation = int(
-        round(total_leaking_amount / round((NUM_GENERATIONS / LEAKING_FREQUENCY)))
+        round(
+            total_leaking_amount
+            / round((config.NUM_GENERATIONS / config.LEAKING_FREQUENCY))
+        )
     )
 
-    for generation in range(NUM_GENERATIONS):
+    for generation in range(config.NUM_GENERATIONS):
 
         replacement_ratio = (
-            REPLACEMENT_RATIO_MAX
-            - (REPLACEMENT_RATIO_MAX - REPLACEMENT_RATIO_MIN)
+            config.REPLACEMENT_RATIO_MAX
+            - (config.REPLACEMENT_RATIO_MAX - config.REPLACEMENT_RATIO_MIN)
             * generation
-            / NUM_GENERATIONS
+            / config.NUM_GENERATIONS
         )
         fitness_scores = fitness_of_antibodies(
-            antibodies=population, antigens=antigens, correctness_type=CORRECTNESS_TYPE
+            antibodies=population,
+            antigens=antigens,
+            correctness_type=config.CORRECTNESS_TYPE,
+            correctness_weight=config.CORRECTNESS_WEIGHT,
+            coverage_weight=config.COVERAGE_WEIGHT,
+            uniqueness_weight=config.UNIQUENESS_WEIGHT,
+            num_classes=config.NUM_CLASSES,
+            correctness_exponent=config.CORRECTNESS_EXPONENT,
+            error_scaling=config.ERROR_SCALING,
         )
         population = crowding(
             antibodies=population,
@@ -444,49 +518,47 @@ def main():
             fitness_scores=fitness_scores,
             center_std=std,
             antigens=antigens,
+            embedding_dim=embedding_dim,
+            center_mutation_intensity=config.CENTER_MUTATION_INTENSITY,
+            center_mutation_dimensions=config.CENTER_MUTATION_DIMENSIONS,
+            radii_mutation_intensity=config.RADII_MUTATION_INTENSITY,
+            min_radii_mutation=config.MIN_RADII_MUTATION,
+            max_radii_mutation=config.MAX_RADII_MUTATION,
+            multiplier_mutation_intensity=config.MULTIPLIER_MUTATION_INTENSITY,
+            multiplier_mutation_dimensions=config.MULTIPLIER_MUTATION_DIMENSIONS,
+            min_fitness_scaling=config.MIN_FITNESS_SCALING,
+            max_fitness_scaling=config.MAX_FITNESS_SCALING,
+            num_clones=config.NUM_CLONES,
+            center_mutation_rate=config.CENTER_MUTATION_RATE,
+            radii_mutation_rate=config.RADII_MUTATION_RATE,
+            multiplier_mutation_rate=config.MULTIPLIER_MUTATION_RATE,
+            correctness_type=config.CORRECTNESS_TYPE,
+            correctness_weight=config.CORRECTNESS_WEIGHT,
+            coverage_weight=config.COVERAGE_WEIGHT,
+            uniqueness_weight=config.UNIQUENESS_WEIGHT,
+            num_classes=config.NUM_CLASSES,
+            correctness_exponent=config.CORRECTNESS_EXPONENT,
+            error_scaling=config.ERROR_SCALING,
         )
 
         # Leaking mechanism
-        if TOTAL_LEAKING != 0 and generation % LEAKING_FREQUENCY == 0:
+        if config.TOTAL_LEAKING != 0 and generation % config.LEAKING_FREQUENCY == 0:
             leaking_population = initialise_population(
-                antigens,
-                leaking_per_generation,
-                INITIALISATION_METHOD,
-                coverage(population, antigens),
+                antigens=antigens,
+                population_size=leaking_per_generation,
+                initialisation_method=config.INITIALISATION_METHOD,
+                coverage=coverage(population, antigens),
+                mean=mean,
+                std=std,
+                embedding_dim=embedding_dim,
+                num_classes=config.NUM_CLASSES,
             )
             population.extend(leaking_population)
-            
+
     population_with_accuracy = []
     for antibody in population:
         antibody.accuracy = accuracy(antibody, antigens)
         population_with_accuracy.append(antibody)
     population = population_with_accuracy
 
-    # Save the final population
-    output = {
-        "id": [antibody.id for antibody in population],
-        "center": torch.tensor(
-            [antibody.center for antibody in population], dtype=torch.float32
-        ),
-        "radii": torch.tensor(
-            [antibody.radii for antibody in population], dtype=torch.float32
-        ),
-        "multiplier": torch.tensor(
-            [antibody.multiplier for antibody in population], dtype=torch.float32
-        ),
-        "label": torch.tensor(
-            [antibody.label for antibody in population], dtype=torch.int
-        ),
-        "accuracy": torch.tensor(
-            [antibody.accuracy for antibody in population], dtype=torch.float32
-        ),
-    }
-    
-    if mu is not None:
-        output["mu"] = torch.tensor(mu, dtype=torch.float32)
-    if w is not None:
-        output["w"] = torch.tensor(w, dtype=torch.float32)
-
-    output_file_path = "x"
-
-    torch.save(output, output_file_path)
+    return population, mu, w
