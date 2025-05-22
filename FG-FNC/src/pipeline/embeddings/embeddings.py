@@ -1,18 +1,27 @@
 import pandas
 import torch
 from transformers import AutoTokenizer
+from typing import Tuple
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
+import config
 
 DATASET = config.DATASET
 FILENAME = config.FILENAME
+WHITENING = config.WHITENING
+DIMENSIONALITY_REDUCTION = config.DIMENSIONALITY_REDUCTION
 
 datasetPath = (
     "/cluster/work/axelle/Datasets-preprocessed/" + DATASET + "/" + FILENAME + ".csv"
 )
+
+nw = ""
+if not WHITENING:
+    nw = "_nw"
+    
 outputPath = (
-    "/cluster/work/axelle/Datasets-embedded/" + DATASET + "/" + FILENAME + ".pt"
+    "/cluster/work/axelle/Datasets-embedded/" + DATASET + "/" + FILENAME + "_" + str(DIMENSIONALITY_REDUCTION) + nw + ".pt"
 )
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -23,7 +32,7 @@ tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v
 
 # Function that returns the embedding of a full article, regardless of length
 # Strides smaller than window_size ensures overlapping chunks
-def embed(text, window_size=512, stride=256):
+def embed(text, window_size=512, stride=256) -> np.ndarray:
     tokens = tokenizer(text, return_tensors="pt", truncation=False)["input_ids"][0]
 
     if len(tokens) < window_size:
@@ -77,6 +86,16 @@ def embed(text, window_size=512, stride=256):
         weighted_embedding = np.average(chunk_embeddings, axis=0, weights=weights)
         return weighted_embedding
 
+def compute_whitening(embeddings: np.ndarray, k: int = None, eps: float = 1e-10) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    mu = np.mean(embeddings, axis=0)
+    cov = np.cov(embeddings - mu, rowvar=False, bias=True)
+    U, S, _ = np.linalg.svd(cov)
+    if k is not None:
+        U = U[:, :k]
+        S = S[:k]
+    w= np.dot(U, np.diag(1.0 / np.sqrt(S + eps)))
+    whitened = np.dot(embeddings - mu, w)
+    return whitened, mu, w
 
 df = pandas.read_csv(datasetPath)
 
@@ -100,10 +119,20 @@ for _, row in tqdm(df.iterrows(), total=len(df), desc="Embedding articles"):
         embeddings.append(embedding)
         labels.append(label)
 
+if WHITENING:        
+    whitened, mu, w = compute_whitening(np.array(embeddings), k=DIMENSIONALITY_REDUCTION)
+    embeddings = whitened
+
+
 output = {
-    "ids": ids,
-    "embeddings": torch.tensor(np.array(embeddings), dtype=torch.float32),
-    "labels": torch.tensor(labels),
+    "id": ids,
+    "embedding": torch.tensor(np.array(embeddings), dtype=torch.float32),
+    "label": torch.tensor(labels),
 }
+
+if WHITENING:
+    output["mu"] = torch.tensor(mu, dtype=torch.float32)
+    output["w"] = torch.tensor(w, dtype=torch.float32)
+
 
 torch.save(output, outputPath)

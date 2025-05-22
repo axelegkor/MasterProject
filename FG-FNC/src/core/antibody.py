@@ -14,6 +14,7 @@ class Antibody:
         np.ndarray
     )  # A vector that represents the scaling of the antibody's recognition region
     label: int  # The classification label of the antibody
+    accuracy: float = None  # The accuracy of the antibody in recognizing antigens
 
     # Function to calculate the vector distance between the antibody's center and an antigen
     def vector_distance(self, antigen: Antigen) -> np.ndarray:
