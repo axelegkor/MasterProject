@@ -44,14 +44,16 @@ def load_test_data() -> List[Antigen]:
 
 
 def evaluate():
-    antibodies, mu, w = train(config=config)
+    
     antigens = load_test_data()
     accuracies = []
     avg_misses = []
     coverages = []
     time_consumptions = []
-    for _ in range(20):
-
+    for i in range(20):
+        
+        print("Evaluating run", i + 1)
+        antibodies, mu, w = train(config=config)
         start_time = time.time()
         evaluated = 0
         correct = 0
@@ -121,14 +123,14 @@ def evaluate():
         f.write("=== Parameter values used for the evaluation ===\n\n")
         f.write(f"Dataset: {config.DATASET}\n")
         f.write(f"Number of Classes: {config.NUM_CLASSES}\n")
-        f.write(f"Whitening: {config.WHITENING}\n")
-        f.write(f"Dimensionality Reduction: {config.DIMENSIONALITY_REDUCTION}\n")
         f.write(f"Correctness Type: {config.CORRECTNESS_TYPE}\n")
         f.write(f"Voting Method: {config.VOTING_METHOD}\n")
         f.write(f"Initialisation Method: {config.INITIALISATION_METHOD}\n")
         f.write(f"Population Size: {config.POPULATION_SIZE}\n")
         f.write(f"Total Leaking: {config.TOTAL_LEAKING}\n")
         f.write(f"Forced Coverage: {config.FORCED_COVERAGE}\n")
+        f.write(f"Whitening: {config.WHITENING}\n")
+        f.write(f"Dimensionality Reduction: {config.DIMENSIONALITY_REDUCTION}\n")
 
         f.write("=== Per-Run Evaluation Results ===\n\n")
         f.write(

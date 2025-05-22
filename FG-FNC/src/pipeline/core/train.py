@@ -72,7 +72,7 @@ def random_initialisation(
             label=label,
         )
         antibodies.append(antibody)
-        
+
     return antibodies
 
 
@@ -466,13 +466,18 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
         + ".pt"
     )
     # Load training data
+    print(f"📥 Loading training data from: {input_file_path}")
     antigens, embedding_dim, mu, w = load_training_data(input_file_path)
+    print(
+        f"✅ Loaded {len(antigens)} antigens with embedding dimension {embedding_dim}"
+    )
 
     # Calculate the mean and standard deviation of the antigens
     mean = center_mean(antigens)
     std = center_std(antigens)
 
     # Initialise population of antibodies
+    print(f"⚙️ Initialising population using method: {config.INITIALISATION_METHOD}")
     population = initialise_population(
         antigens=antigens,
         population_size=config.POPULATION_SIZE * len(antigens),
@@ -484,6 +489,8 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
         num_classes=config.NUM_CLASSES,
     )
 
+    print(f"👾 Initial population size: {len(population)}")
+
     total_leaking_amount = int(round(config.POPULATION_SIZE * config.TOTAL_LEAKING))
 
     leaking_per_generation = int(
@@ -494,7 +501,7 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
     )
 
     for generation in range(config.NUM_GENERATIONS):
-
+        print(f"🔄 Generation {generation + 1}/{config.NUM_GENERATIONS}")
         replacement_ratio = (
             config.REPLACEMENT_RATIO_MAX
             - (config.REPLACEMENT_RATIO_MAX - config.REPLACEMENT_RATIO_MIN)
@@ -561,4 +568,5 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
         population_with_accuracy.append(antibody)
     population = population_with_accuracy
 
+    print(f"🏁 Training complete")
     return population, mu, w
