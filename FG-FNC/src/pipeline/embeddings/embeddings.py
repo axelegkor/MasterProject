@@ -23,7 +23,7 @@ datasetPath = (
 if not WHITENING:
     whitening_str = "nw"
 elif WHITENING and DIMENSIONALITY_REDUCTION is None:
-    whitening_str = "w"
+    whitening_str = "384"
 else:
     whitening_str = str(DIMENSIONALITY_REDUCTION)
 
