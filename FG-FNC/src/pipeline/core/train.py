@@ -1,8 +1,7 @@
 import numpy as np
 from typing import List, Dict, Tuple
-from classes.antigen import Antigen
-from classes.antibody import Antibody
-from preprocess.preprocess import num_classes
+from antibody import Antibody
+from antigen import Antigen
 import uuid
 import copy
 import torch
@@ -24,7 +23,7 @@ def load_training_data(
     for i in range(len(ids)):
         antigen = Antigen(
             id=ids[i],
-            embedding=embeddings[i],
+            embedding=embeddings[i].detach().cpu().numpy(),
             label=labels[i],
         )
         antigens.append(antigen)
@@ -32,14 +31,26 @@ def load_training_data(
     return antigens, embeddings.shape[1], mu, w
 
 
-# Helper function to calculate the shortest distance between a point in an antigen with a different label
+# Helper function to determine the number of classes based on the dataset
+def get_num_classes(dataset: str) -> int:
+    if dataset == "Liar":
+        return 6
+    elif dataset == "Politifact":
+        return 6
+    elif dataset == "Averitec":
+        return 3
+    else:
+        raise ValueError(f"Unknown dataset: {dataset}")
+
+
+# Helper function to calculate the shortest distance between a point and an antigen with a different label
 def max_radius(point: np.ndarray, antigens: List[Antigen], label: int) -> float:
     distances = [
         np.linalg.norm(point - antigen.embedding)
         for antigen in antigens
         if antigen.label != label
     ]
-    return max(distances)
+    return min(distances)
 
 
 # Helper function to calculate the center of mass of a population of antigens
@@ -62,7 +73,8 @@ def random_initialisation(
 ) -> List[Antibody]:
     rng = np.random.default_rng()
     antibodies = []
-    for _ in range(population_size):
+    for i in range(population_size):
+        print(f"Initialising: {i + 1}/{population_size}", flush=True)
         center = rng.normal(mean, std, size=embedding_dim)
         label = rng.integers(0, num_classes)
         antibody = Antibody(
@@ -85,7 +97,8 @@ def antigen_based_initialisation(
 ) -> List[Antibody]:
     antibodies = []
     rng = np.random.default_rng()
-    for _ in range(population_size):
+    for i in range(population_size):
+        print(f"Initialising: {i + 1}/{population_size}", flush=True)
         probabilities = 1 / coverage
         probabilities /= np.sum(probabilities)
         index = rng.choice(len(antigens), p=probabilities)
@@ -158,6 +171,7 @@ def fitness_of_antibodies_continuous_correctness(
     fitness_scores = {}
     shared_counts = shared_count(antibodies, antigens)
     for antibody in antibodies:
+        print(f"Calculating fitness for antibody {antibody.id}", flush=True)
         correctness_count = 0
         true_positives = 0
         false_positives = 0
@@ -256,6 +270,7 @@ def fitness_of_antibodies(
     correctness_exponent: float,
     error_scaling: float,
 ) -> Dict[str, float]:
+    print(f"Calculating fitness for {len(antibodies)} antibodies", flush=True)
     if correctness_type == "continuous":
         return fitness_of_antibodies_continuous_correctness(
             antibodies,
@@ -355,12 +370,16 @@ def crowding(
     correctness_exponent: float,
     error_scaling: float,
 ) -> List[Antibody]:
+    print(
+        f"Performing crowding with replacement ratio: {replacement_ratio}", flush=True
+    )
     antibodies_eligible = antibodies.copy()
     updated_antibodies = antibodies.copy()
     rng = np.random.default_rng()
     num_replacements = int(len(antibodies) * replacement_ratio)
     avg_fitness = np.mean(list(fitness_scores.values()))
-    for _ in range(num_replacements):
+    for i in range(num_replacements):
+        print(f"Cloning and mutating antibody {i + 1}/{num_replacements}", flush=True)
         index = rng.integers(0, len(antibodies_eligible))
         antibody = antibodies_eligible[index]
         antibodies_eligible.pop(index)
@@ -452,8 +471,8 @@ def accuracy(antibody: Antibody, antigens: List[Antigen]) -> float:
 
 # Main function to run the training process
 def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
-    
-    num_classes = num_classes(config["DATASET"])
+
+    num_classes = get_num_classes(config["DATASET"])
     if not config["WHITENING"]:
         whitening_str = "nw"
     else:
@@ -480,10 +499,10 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
     std = center_std(antigens)
 
     # Initialise population of antibodies
-    print(f"⚙️ Initialising population using method: {config["INITIALISATION_METHOD"]}")
+    print(f"⚙️ Initialising population using method: {config['INITIALISATION_METHOD']}")
     population = initialise_population(
         antigens=antigens,
-        population_size=config["POPULATION_SIZE"] * len(antigens),
+        population_size=int(round(config["POPULATION_SIZE"] * len(antigens))),
         initialisation_method=config["INITIALISATION_METHOD"],
         coverage=np.ones(len(antigens)),
         mean=mean,
@@ -494,7 +513,9 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
 
     print(f"👾 Initial population size: {len(population)}")
 
-    total_leaking_amount = int(round(config["POPULATION_SIZE"] * config["TOTAL_LEAKING"]))
+    total_leaking_amount = int(
+        round(config["POPULATION_SIZE"] * config["TOTAL_LEAKING"])
+    )
 
     leaking_per_generation = int(
         round(
@@ -504,7 +525,7 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
     )
 
     for generation in range(config["NUM_GENERATIONS"]):
-        print(f"🔄 Generation {generation + 1}/{config["NUM_GENERATIONS"]}")
+        print(f"🔄 Generation {generation + 1}/{config['NUM_GENERATIONS']}", flush=True)
         replacement_ratio = (
             config["REPLACEMENT_RATIO_MAX"]
             - (config["REPLACEMENT_RATIO_MAX"] - config["REPLACEMENT_RATIO_MIN"])
@@ -552,7 +573,10 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
         )
 
         # Leaking mechanism
-        if config["TOTAL_LEAKING"] != 0 and generation % config["LEAKING_FREQUENCY"] == 0:
+        if (
+            config["TOTAL_LEAKING"] != 0
+            and generation % config["LEAKING_FREQUENCY"] == 0
+        ):
             leaking_population = initialise_population(
                 antigens=antigens,
                 population_size=leaking_per_generation,
@@ -571,5 +595,5 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
         population_with_accuracy.append(antibody)
     population = population_with_accuracy
 
-    print(f"🏁 Training complete")
+    print(f"🏁 Training complete", flush=True)
     return population, mu, w

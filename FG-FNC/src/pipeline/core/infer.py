@@ -1,7 +1,7 @@
 import torch
 import numpy as np
-from classes.antibody import Antibody
-from classes.antigen import Antigen
+from antibody import Antibody
+from antigen import Antigen
 from typing import List, Tuple
 
 

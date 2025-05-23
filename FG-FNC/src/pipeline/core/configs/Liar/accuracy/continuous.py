@@ -8,9 +8,11 @@ CORRECTNESS_TYPE = "continuous"  # Options: "continuous", "binary"
 
 VOTING_METHOD = "continuous"  # Options: "continuous", "binary"
 
-INITIALISATION_METHOD = "antigen_based"  # Options: "random", "antigen_based"
+INITIALISATION_METHOD = "random"  # Options: "random", "antigen_based"
 
-POPULATION_SIZE = 1  # Initial population size as a fraction of the training data size
+POPULATION_SIZE = (
+    0.01  # Initial population size as a fraction of the training data size
+)
 
 TOTAL_LEAKING = 0.2  # Total leaking ratio compared to the population size
 

@@ -29,17 +29,6 @@ output_path = (
 )
 
 
-def num_classes(dataset: str) -> int:
-    if dataset == "Liar":
-        return 6
-    elif dataset == "Politifact":
-        return 6
-    elif dataset == "Averitec":
-        return 3
-    else:
-        raise ValueError(f"Unknown dataset: {dataset}")
-
-
 def preprocess_liar():
     df = pd.read_csv(input_path, sep="\t", header=None)
     df = df[[2, 1]]
