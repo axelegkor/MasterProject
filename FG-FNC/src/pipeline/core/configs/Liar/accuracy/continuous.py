@@ -3,7 +3,6 @@ EXPERIMENT = "accuracy"
 
 # Varying hyperparameters
 DATASET = "Liar"
-NUM_CLASSES = 5
 
 CORRECTNESS_TYPE = "continuous"  # Options: "continuous", "binary"
 

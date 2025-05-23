@@ -2,6 +2,7 @@ import numpy as np
 from typing import List, Dict, Tuple
 from classes.antigen import Antigen
 from classes.antibody import Antibody
+from preprocess.preprocess import num_classes
 import uuid
 import copy
 import torch
@@ -451,6 +452,8 @@ def accuracy(antibody: Antibody, antigens: List[Antigen]) -> float:
 
 # Main function to run the training process
 def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
+    
+    num_classes = num_classes(config.DATASET)
     if not config.WHITENING:
         whitening_str = "nw"
     else:
@@ -486,7 +489,7 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
         mean=mean,
         std=std,
         embedding_dim=embedding_dim,
-        num_classes=config.NUM_CLASSES,
+        num_classes=num_classes,
     )
 
     print(f"👾 Initial population size: {len(population)}")
@@ -515,7 +518,7 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
             correctness_weight=config.CORRECTNESS_WEIGHT,
             coverage_weight=config.COVERAGE_WEIGHT,
             uniqueness_weight=config.UNIQUENESS_WEIGHT,
-            num_classes=config.NUM_CLASSES,
+            num_classes=num_classes,
             correctness_exponent=config.CORRECTNESS_EXPONENT,
             error_scaling=config.ERROR_SCALING,
         )
@@ -543,7 +546,7 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
             correctness_weight=config.CORRECTNESS_WEIGHT,
             coverage_weight=config.COVERAGE_WEIGHT,
             uniqueness_weight=config.UNIQUENESS_WEIGHT,
-            num_classes=config.NUM_CLASSES,
+            num_classes=num_classes,
             correctness_exponent=config.CORRECTNESS_EXPONENT,
             error_scaling=config.ERROR_SCALING,
         )
@@ -558,7 +561,7 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
                 mean=mean,
                 std=std,
                 embedding_dim=embedding_dim,
-                num_classes=config.NUM_CLASSES,
+                num_classes=num_classes,
             )
             population.extend(leaking_population)
 

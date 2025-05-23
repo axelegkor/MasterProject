@@ -1,10 +1,10 @@
-NAME = "binary"
+NAME = "continuous"
 EXPERIMENT = "accuracy"
 
 # Varying hyperparameters
-DATASET = "Liar"
+DATASET = "Averitec"
 
-CORRECTNESS_TYPE = "binary"  # Options: "continuous", "binary"
+CORRECTNESS_TYPE = "continuous"  # Options: "continuous", "binary"
 
 VOTING_METHOD = "continuous"  # Options: "continuous", "binary"
 

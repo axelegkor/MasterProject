@@ -9,7 +9,6 @@ from infer import classify_antigen
 from classes.antigen import Antigen
 from classes.antibody import Antibody
 
-
 def load_test_data() -> List[Antigen]:
     if not config.WHITENING:
         whitening_str = "nw"
@@ -122,7 +121,6 @@ def evaluate():
 
         f.write("=== Parameter values used for the evaluation ===\n\n")
         f.write(f"Dataset: {config.DATASET}\n")
-        f.write(f"Number of Classes: {config.NUM_CLASSES}\n")
         f.write(f"Correctness Type: {config.CORRECTNESS_TYPE}\n")
         f.write(f"Voting Method: {config.VOTING_METHOD}\n")
         f.write(f"Initialisation Method: {config.INITIALISATION_METHOD}\n")

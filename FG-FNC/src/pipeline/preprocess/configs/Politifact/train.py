@@ -1,0 +1,2 @@
+DATASET = "Politifact"
+FILENAME = "train"

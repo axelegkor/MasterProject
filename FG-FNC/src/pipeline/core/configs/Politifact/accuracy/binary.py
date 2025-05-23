@@ -2,7 +2,7 @@ NAME = "binary"
 EXPERIMENT = "accuracy"
 
 # Varying hyperparameters
-DATASET = "Liar"
+DATASET = "Politifact"
 
 CORRECTNESS_TYPE = "binary"  # Options: "continuous", "binary"
 

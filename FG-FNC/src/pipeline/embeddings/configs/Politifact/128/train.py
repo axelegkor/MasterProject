@@ -1,4 +1,4 @@
-DATASET = "Liar"
+DATASET = "Politifact"
 FILENAME = "train"
 WHITENING = True
 DIMENSIONALITY_REDUCTION = 128
