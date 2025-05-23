@@ -1,0 +1,4 @@
+DATASET = "Averitec"
+FILENAME = "train"
+WHITENING = False
+DIMENSIONALITY_REDUCTION = None

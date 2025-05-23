@@ -1,0 +1,4 @@
+DATASET = "Averitec"
+FILENAME = "test"
+WHITENING = False
+DIMENSIONALITY_REDUCTION = None

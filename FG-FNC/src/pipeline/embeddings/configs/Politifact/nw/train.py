@@ -1,0 +1,4 @@
+DATASET = "Politifact"
+FILENAME = "train"
+WHITENING = False
+DIMENSIONALITY_REDUCTION = None

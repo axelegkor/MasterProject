@@ -1,9 +1,12 @@
 import pandas as pd
 import json
-import config
+import runpy
+import os
 
-DATASET = config.DATASET
-FILENAME = config.FILENAME
+config = runpy.run_path(os.environ["CONFIG_PATH"])
+
+DATASET = config["DATASET"]
+FILENAME = config["FILENAME"]
 
 
 if DATASET == "Liar":

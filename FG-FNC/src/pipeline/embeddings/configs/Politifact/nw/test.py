@@ -1,0 +1,4 @@
+DATASET = "Politifact"
+FILENAME = "test"
+WHITENING = False
+DIMENSIONALITY_REDUCTION = None

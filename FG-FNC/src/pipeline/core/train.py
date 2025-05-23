@@ -453,15 +453,15 @@ def accuracy(antibody: Antibody, antigens: List[Antigen]) -> float:
 # Main function to run the training process
 def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
     
-    num_classes = num_classes(config.DATASET)
-    if not config.WHITENING:
+    num_classes = num_classes(config["DATASET"])
+    if not config["WHITENING"]:
         whitening_str = "nw"
     else:
-        whitening_str = str(config.DIMENSIONALITY_REDUCTION)
+        whitening_str = str(config["DIMENSIONALITY_REDUCTION"])
 
     input_file_path = (
         "/cluster/work/axelle/Datasets-embedded/"
-        + config.DATASET
+        + config["DATASET"]
         + "/"
         + whitening_str
         + "/"
@@ -480,11 +480,11 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
     std = center_std(antigens)
 
     # Initialise population of antibodies
-    print(f"⚙️ Initialising population using method: {config.INITIALISATION_METHOD}")
+    print(f"⚙️ Initialising population using method: {config["INITIALISATION_METHOD"]}")
     population = initialise_population(
         antigens=antigens,
-        population_size=config.POPULATION_SIZE * len(antigens),
-        initialisation_method=config.INITIALISATION_METHOD,
+        population_size=config["POPULATION_SIZE"] * len(antigens),
+        initialisation_method=config["INITIALISATION_METHOD"],
         coverage=np.ones(len(antigens)),
         mean=mean,
         std=std,
@@ -494,33 +494,33 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
 
     print(f"👾 Initial population size: {len(population)}")
 
-    total_leaking_amount = int(round(config.POPULATION_SIZE * config.TOTAL_LEAKING))
+    total_leaking_amount = int(round(config["POPULATION_SIZE"] * config["TOTAL_LEAKING"]))
 
     leaking_per_generation = int(
         round(
             total_leaking_amount
-            / round((config.NUM_GENERATIONS / config.LEAKING_FREQUENCY))
+            / round((config["NUM_GENERATIONS"] / config["LEAKING_FREQUENCY"]))
         )
     )
 
-    for generation in range(config.NUM_GENERATIONS):
-        print(f"🔄 Generation {generation + 1}/{config.NUM_GENERATIONS}")
+    for generation in range(config["NUM_GENERATIONS"]):
+        print(f"🔄 Generation {generation + 1}/{config["NUM_GENERATIONS"]}")
         replacement_ratio = (
-            config.REPLACEMENT_RATIO_MAX
-            - (config.REPLACEMENT_RATIO_MAX - config.REPLACEMENT_RATIO_MIN)
+            config["REPLACEMENT_RATIO_MAX"]
+            - (config["REPLACEMENT_RATIO_MAX"] - config["REPLACEMENT_RATIO_MIN"])
             * generation
-            / config.NUM_GENERATIONS
+            / config["NUM_GENERATIONS"]
         )
         fitness_scores = fitness_of_antibodies(
             antibodies=population,
             antigens=antigens,
-            correctness_type=config.CORRECTNESS_TYPE,
-            correctness_weight=config.CORRECTNESS_WEIGHT,
-            coverage_weight=config.COVERAGE_WEIGHT,
-            uniqueness_weight=config.UNIQUENESS_WEIGHT,
+            correctness_type=config["CORRECTNESS_TYPE"],
+            correctness_weight=config["CORRECTNESS_WEIGHT"],
+            coverage_weight=config["COVERAGE_WEIGHT"],
+            uniqueness_weight=config["UNIQUENESS_WEIGHT"],
             num_classes=num_classes,
-            correctness_exponent=config.CORRECTNESS_EXPONENT,
-            error_scaling=config.ERROR_SCALING,
+            correctness_exponent=config["CORRECTNESS_EXPONENT"],
+            error_scaling=config["ERROR_SCALING"],
         )
         population = crowding(
             antibodies=population,
@@ -529,34 +529,34 @@ def train(config) -> Tuple[List[Antibody], np.ndarray, np.ndarray]:
             center_std=std,
             antigens=antigens,
             embedding_dim=embedding_dim,
-            center_mutation_intensity=config.CENTER_MUTATION_INTENSITY,
-            center_mutation_dimensions=config.CENTER_MUTATION_DIMENSIONS,
-            radii_mutation_intensity=config.RADII_MUTATION_INTENSITY,
-            min_radii_mutation=config.MIN_RADII_MUTATION,
-            max_radii_mutation=config.MAX_RADII_MUTATION,
-            multiplier_mutation_intensity=config.MULTIPLIER_MUTATION_INTENSITY,
-            multiplier_mutation_dimensions=config.MULTIPLIER_MUTATION_DIMENSIONS,
-            min_fitness_scaling=config.MIN_FITNESS_SCALING,
-            max_fitness_scaling=config.MAX_FITNESS_SCALING,
-            num_clones=config.NUM_CLONES,
-            center_mutation_rate=config.CENTER_MUTATION_RATE,
-            radii_mutation_rate=config.RADII_MUTATION_RATE,
-            multiplier_mutation_rate=config.MULTIPLIER_MUTATION_RATE,
-            correctness_type=config.CORRECTNESS_TYPE,
-            correctness_weight=config.CORRECTNESS_WEIGHT,
-            coverage_weight=config.COVERAGE_WEIGHT,
-            uniqueness_weight=config.UNIQUENESS_WEIGHT,
+            center_mutation_intensity=config["CENTER_MUTATION_INTENSITY"],
+            center_mutation_dimensions=config["CENTER_MUTATION_DIMENSIONS"],
+            radii_mutation_intensity=config["RADII_MUTATION_INTENSITY"],
+            min_radii_mutation=config["MIN_RADII_MUTATION"],
+            max_radii_mutation=config["MAX_RADII_MUTATION"],
+            multiplier_mutation_intensity=config["MULTIPLIER_MUTATION_INTENSITY"],
+            multiplier_mutation_dimensions=config["MULTIPLIER_MUTATION_DIMENSIONS"],
+            min_fitness_scaling=config["MIN_FITNESS_SCALING"],
+            max_fitness_scaling=config["MAX_FITNESS_SCALING"],
+            num_clones=config["NUM_CLONES"],
+            center_mutation_rate=config["CENTER_MUTATION_RATE"],
+            radii_mutation_rate=config["RADII_MUTATION_RATE"],
+            multiplier_mutation_rate=config["MULTIPLIER_MUTATION_RATE"],
+            correctness_type=config["CORRECTNESS_TYPE"],
+            correctness_weight=config["CORRECTNESS_WEIGHT"],
+            coverage_weight=config["COVERAGE_WEIGHT"],
+            uniqueness_weight=config["UNIQUENESS_WEIGHT"],
             num_classes=num_classes,
-            correctness_exponent=config.CORRECTNESS_EXPONENT,
-            error_scaling=config.ERROR_SCALING,
+            correctness_exponent=config["CORRECTNESS_EXPONENT"],
+            error_scaling=config["ERROR_SCALING"],
         )
 
         # Leaking mechanism
-        if config.TOTAL_LEAKING != 0 and generation % config.LEAKING_FREQUENCY == 0:
+        if config["TOTAL_LEAKING"] != 0 and generation % config["LEAKING_FREQUENCY"] == 0:
             leaking_population = initialise_population(
                 antigens=antigens,
                 population_size=leaking_per_generation,
-                initialisation_method=config.INITIALISATION_METHOD,
+                initialisation_method=config["INITIALISATION_METHOD"],
                 coverage=coverage(population, antigens),
                 mean=mean,
                 std=std,

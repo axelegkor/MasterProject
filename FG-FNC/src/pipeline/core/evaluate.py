@@ -1,4 +1,4 @@
-import config
+import runpy
 import torch
 import os
 import time
@@ -9,15 +9,17 @@ from infer import classify_antigen
 from classes.antigen import Antigen
 from classes.antibody import Antibody
 
+config = runpy.run_path(os.environ["CONFIG_PATH"])
+
 def load_test_data() -> List[Antigen]:
-    if not config.WHITENING:
+    if not config["WHITENING"]:
         whitening_str = "nw"
     else:
-        whitening_str = str(config.DIMENSIONALITY_REDUCTION)
+        whitening_str = str(config["DIMENSIONALITY_REDUCTION"])
 
     input_file_path = (
         "/cluster/work/axelle/Datasets-embedded/"
-        + config.DATASET
+        + config["DATASET"]
         + "/"
         + whitening_str
         + "/"
@@ -61,13 +63,13 @@ def evaluate():
 
         for antigen in antigens:
             predicted = classify_antigen(
-                voting_method=config.VOTING_METHOD,
+                voting_method=config["VOTING_METHOD"],
                 antigen=antigen,
                 antibodies=antibodies,
-                whitening=config.WHITENING,
+                whitening=config["WHITENING"],
                 mu=mu,
                 w=w,
-                forced_coverage=config.FORCED_COVERAGE,
+                forced_coverage=config["FORCED_COVERAGE"],
             )
             if predicted == -1:
                 unclassified += 1
@@ -89,10 +91,10 @@ def evaluate():
 
     # Write results to file
     output_dir = (
-        f"/cluster/work/axelle/Evaluation_results/{config.EXPERIMENT}/{config.DATASET}"
+        f"/cluster/work/axelle/Evaluation_results/{config["EXPERIMENT"]}/{config["DATASET"]}"
     )
     os.makedirs(output_dir, exist_ok=True)
-    with open(f"{output_dir}/{config.NAME}.txt", "w") as f:
+    with open(f"{output_dir}/{config["NAME"]}.txt", "w") as f:
         f.write("=== Summary of 20 Evaluation Runs ===\n\n")
 
         f.write("Accuracy Statistics:\n")
@@ -120,15 +122,15 @@ def evaluate():
         f.write(f"{'Std Dev':<20}{np.std(time_consumptions):.4f}\n\n")
 
         f.write("=== Parameter values used for the evaluation ===\n\n")
-        f.write(f"Dataset: {config.DATASET}\n")
-        f.write(f"Correctness Type: {config.CORRECTNESS_TYPE}\n")
-        f.write(f"Voting Method: {config.VOTING_METHOD}\n")
-        f.write(f"Initialisation Method: {config.INITIALISATION_METHOD}\n")
-        f.write(f"Population Size: {config.POPULATION_SIZE}\n")
-        f.write(f"Total Leaking: {config.TOTAL_LEAKING}\n")
-        f.write(f"Forced Coverage: {config.FORCED_COVERAGE}\n")
-        f.write(f"Whitening: {config.WHITENING}\n")
-        f.write(f"Dimensionality Reduction: {config.DIMENSIONALITY_REDUCTION}\n")
+        f.write(f"Dataset: {config["DATASET"]}\n")
+        f.write(f"Correctness Type: {config["CORRECTNESS_TYPE"]}\n")
+        f.write(f"Voting Method: {config["VOTING_METHOD"]}\n")
+        f.write(f"Initialisation Method: {config["INITIALISATION_METHOD"]}\n")
+        f.write(f"Population Size: {config["POPULATION_SIZE"]}\n")
+        f.write(f"Total Leaking: {config["TOTAL_LEAKING"]}\n")
+        f.write(f"Forced Coverage: {config["FORCED_COVERAGE"]}\n")
+        f.write(f"Whitening: {config["WHITENING"]}\n")
+        f.write(f"Dimensionality Reduction: {config["DIMENSIONALITY_REDUCTION"]}\n")
 
         f.write("=== Per-Run Evaluation Results ===\n\n")
         f.write(

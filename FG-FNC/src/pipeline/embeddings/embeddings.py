@@ -5,12 +5,15 @@ from typing import Tuple
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
-import config
+import runpy
+import os
 
-DATASET = config.DATASET
-FILENAME = config.FILENAME
-WHITENING = config.WHITENING
-DIMENSIONALITY_REDUCTION = config.DIMENSIONALITY_REDUCTION
+config = runpy.run_path(os.environ["CONFIG_PATH"])
+
+DATASET = config["DATASET"]
+FILENAME = config["FILENAME"]
+WHITENING = config["WHITENING"]
+DIMENSIONALITY_REDUCTION = config["DIMENSIONALITY_REDUCTION"]
 
 datasetPath = (
     "/cluster/work/axelle/Datasets-preprocessed/" + DATASET + "/" + FILENAME + ".csv"
