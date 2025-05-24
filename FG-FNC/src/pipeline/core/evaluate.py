@@ -4,8 +4,8 @@ import os
 import time
 import numpy as np
 from typing import List
-from train import train
-from infer import classify_antigen
+from train import train, get_num_classes
+from infer import classify_antigens
 from antigen import Antigen
 from antibody import Antibody
 
@@ -36,47 +36,55 @@ def load_test_data() -> List[Antigen]:
     data = torch.load(input_file_path)
 
     ids = data["id"]
-    embeddings = data["embedding"]
+    embeddings = data["embedding"].to("cuda")
     labels = data["label"]
 
     antigens = []
     for i in range(len(ids)):
         antigen = Antigen(
             id=ids[i],
-            embedding=embeddings[i].detach().cpu().numpy(),
+            embedding=embeddings[i],
             label=labels[i],
         )
         antigens.append(antigen)
     return antigens
 
 
-def evaluate():
+def write_stat_block(f, title: str, values: List[float]):
+    t = torch.tensor(values)
+    f.write(f"{title}:\n")
+    f.write(f"{'Mean':<20}{t.mean().item():.4f}\n")
+    f.write(f"{'Max':<20}{t.max().item():.4f}\n")
+    f.write(f"{'Min':<20}{t.min().item():.4f}\n")
+    f.write(f"{'Std Dev':<20}{t.std(unbiased=False).item():.4f}\n\n")
 
+
+def evaluate():
     antigens = load_test_data()
     accuracies = []
     avg_misses = []
     coverages = []
     time_consumptions = []
-    for i in range(20):
-
-        print("Evaluating run " + str(i + 1) + "/20", flush=True)
-        antibodies, mu, w = train(config=config)
+    for i in range(1):
         start_time = time.time()
-        evaluated = 0
+        print("Evaluating run " + str(i + 1) + "/20", flush=True)
+        antibodies = train(config=config)
+
+        print("Classifying antigens", flush=True)
+        predictions = classify_antigens(
+            voting_method=config["VOTING_METHOD"],
+            antigens=antigens,
+            antibodies=antibodies,
+            forced_coverage=config["FORCED_COVERAGE"],
+            num_classes=get_num_classes(config["DATASET"]),
+        )
+
         correct = 0
         misses = 0
+        evaluated = 0
         unclassified = 0
-
-        for antigen in antigens:
-            predicted = classify_antigen(
-                voting_method=config["VOTING_METHOD"],
-                antigen=antigen,
-                antibodies=antibodies,
-                whitening=config["WHITENING"],
-                mu=mu,
-                w=w,
-                forced_coverage=config["FORCED_COVERAGE"],
-            )
+        for j, antigen in enumerate(antigens):
+            predicted = predictions[j].item()
             if predicted == -1:
                 unclassified += 1
             elif predicted == antigen.label:
@@ -85,6 +93,26 @@ def evaluate():
             else:
                 misses += abs(predicted - antigen.label)
                 evaluated += 1
+        # for antigen in antigens:
+        #     counter += 1
+        #     print(
+        #         "Evaluating antigen " + str(counter) + "/" + str(len(antigens)),
+        #         flush=True,
+        #     )
+        #     predicted = classify_antigen(
+        #         voting_method=config["VOTING_METHOD"],
+        #         antigen=antigen,
+        #         antibodies=antibodies,
+        #         forced_coverage=config["FORCED_COVERAGE"],
+        #     )
+        #     if predicted == -1:
+        #         unclassified += 1
+        #     elif predicted == antigen.label:
+        #         correct += 1
+        #         evaluated += 1
+        #     else:
+        #         misses += abs(predicted - antigen.label)
+        #         evaluated += 1
 
         time_consumptions.append(time.time() - start_time)
         accuracies.append(correct / evaluated if evaluated > 0 else 0)
@@ -101,29 +129,10 @@ def evaluate():
     with open(f"{output_dir}/{config['NAME']}.txt", "w") as f:
         f.write("=== Summary of 20 Evaluation Runs ===\n\n")
 
-        f.write("Accuracy Statistics:\n")
-        f.write(f"{'Mean':<20}{np.mean(accuracies):.4f}\n")
-        f.write(f"{'Max':<20}{np.max(accuracies):.4f}\n")
-        f.write(f"{'Min':<20}{np.min(accuracies):.4f}\n")
-        f.write(f"{'Std Dev':<20}{np.std(accuracies):.4f}\n\n")
-
-        f.write("Average Misses Statistics:\n")
-        f.write(f"{'Mean':<20}{np.mean(avg_misses):.4f}\n")
-        f.write(f"{'Max':<20}{np.max(avg_misses):.4f}\n")
-        f.write(f"{'Min':<20}{np.min(avg_misses):.4f}\n")
-        f.write(f"{'Std Dev':<20}{np.std(avg_misses):.4f}\n\n")
-
-        f.write("Coverage Statistics:\n")
-        f.write(f"{'Mean':<20}{np.mean(coverages):.4f}\n")
-        f.write(f"{'Max':<20}{np.max(coverages):.4f}\n")
-        f.write(f"{'Min':<20}{np.min(coverages):.4f}\n")
-        f.write(f"{'Std Dev':<20}{np.std(coverages):.4f}\n\n")
-
-        f.write("Time Consumption Statistics:\n")
-        f.write(f"{'Mean':<20}{np.mean(time_consumptions):.4f}\n")
-        f.write(f"{'Max':<20}{np.max(time_consumptions):.4f}\n")
-        f.write(f"{'Min':<20}{np.min(time_consumptions):.4f}\n")
-        f.write(f"{'Std Dev':<20}{np.std(time_consumptions):.4f}\n\n")
+        write_stat_block(f, "Accuracy Statistics", accuracies)
+        write_stat_block(f, "Average Misses Statistics", avg_misses)
+        write_stat_block(f, "Coverage Statistics", coverages)
+        write_stat_block(f, "Time Consumption Statistics", time_consumptions)
 
         f.write("=== Parameter values used for the evaluation ===\n\n")
         f.write(f"Dataset: {config['DATASET']}\n")
@@ -141,7 +150,7 @@ def evaluate():
             f"{'Run':<5}{'Accuracy':>12}{'Avg Misses':>15}{'Coverage':>18}{'Time (s)':>14}\n"
         )
         f.write("-" * 65 + "\n")
-        for i in range(20):
+        for i in range(len(accuracies)):
             f.write(
                 f"{i+1:<5}{accuracies[i]:>12.4f}{avg_misses[i]:>15.4f}{coverages[i]:>18.4f}{time_consumptions[i]:>14.4f}\n"
             )

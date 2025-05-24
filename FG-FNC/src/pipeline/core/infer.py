@@ -3,43 +3,130 @@ import numpy as np
 from antibody import Antibody
 from antigen import Antigen
 from typing import List, Tuple
+from utils import batch_is_recognized
 
 
-def whiten_embedding(
-    embedding: np.ndarray, mu: np.ndarray, w: np.ndarray
-) -> np.ndarray:
-    return np.dot(embedding - mu, w)
+# def classify_antigen(
+#     voting_method: str,
+#     antigen: Antigen,
+#     antibodies: List[Antibody],
+#     forced_coverage: bool,
+# ) -> int:
+#     votes = {}
+#     for antibody in antibodies:
+#         if antibody.is_recognized(antigen):
+#             votes[antibody.label] = votes.get(antibody.label, 0) + antibody.accuracy
+#     if not votes:
+#         if forced_coverage:
+#             closest = (None, 0)
+#             for antibody in antibodies:
+#                 if closest[0] is None or antibody.scaled_distance(antigen) < closest[1]:
+#                     closest = (antibody, antibody.scaled_distance(antigen))
+#             return closest[0].label
+#         else:
+#             return -1
+#     if voting_method == "binary":
+#         return max(votes, key=votes.get)
+#     elif voting_method == "continuous":
+#         total_votes = sum(votes.values())
+#         weighted_sum = sum(label * (votes[label] / total_votes) for label in votes)
+#         return int(round(weighted_sum))
+#     else:
+#         raise ValueError(f"Unknown voting method: {voting_method}")
 
 
-def classify_antigen(
+def classify_antigens(
     voting_method: str,
-    antigen: Antigen,
+    antigens: List[Antigen],
     antibodies: List[Antibody],
-    whitening: bool,
-    mu: np.ndarray,
-    w: np.ndarray,
     forced_coverage: bool,
-) -> int:
-    if whitening and mu is not None and w is not None:
-        antigen.embedding = whiten_embedding(antigen.embedding, mu, w)
-    votes = {}
-    for antibody in antibodies:
-        if antibody.is_recognized(antigen):
-            votes[antibody.label] = votes.get(antibody.label, 0) + antibody.accuracy
-    if not votes:
-        if forced_coverage:
-            closest = (None, 0)
-            for antibody in antibodies:
-                if closest[0] is None or antibody.scaled_distance(antigen) < closest[1]:
-                    closest = (antibody, antibody.scaled_distance(antigen))
-            return closest[0].label
-        else:
-            return -1
+    num_classes: int,
+) -> torch.Tensor:
+    print("Antibody labels:", [antibody.label for antibody in antibodies])
+    A = len(antibodies)
+    N = len(antigens)
+    recognized = batch_is_recognized(antibodies, antigens)
+    print(
+        "Number of antibodies recognizing each antigen",
+        batch_is_recognized(antibodies, antigens).sum(dim=0),
+    )  # Number of antibodies recognizing each antigen
+
+    accuracy_tensor = torch.tensor(
+        [antibody.accuracy for antibody in antibodies], device="cuda"
+    )
+    labels = torch.tensor([antibody.label for antibody in antibodies], device="cuda")
+    votes = torch.zeros((N, num_classes), device="cuda")
+
+    for c in range(num_classes):
+        label_mask = labels == c
+        votes[:, c] = (recognized[label_mask].T * accuracy_tensor[label_mask]).sum(
+            dim=1
+        )
+    print("🔍 First 5 vote rows:\n", votes[:5])
+
+    no_votes = votes.sum(dim=1) == 0
+
     if voting_method == "binary":
-        return max(votes, key=votes.get)
+        preds = votes.argmax(dim=1)
     elif voting_method == "continuous":
-        total_votes = sum(votes.values())
-        weighted_sum = sum(label * (votes[label] / total_votes) for label in votes)
-        return int(np.round(weighted_sum))
+        class_indices = torch.arange(num_classes, device="cuda")
+        weighted_sum = (votes * class_indices).sum(dim=1) / (votes.sum(dim=1) + 1e-8)
+        preds = weighted_sum.round().long()
     else:
         raise ValueError(f"Unknown voting method: {voting_method}")
+
+    # ✅ Print prediction summary
+    print("🧠 First 5 predictions:", preds[:5])
+    from collections import Counter
+
+    pred_counts = Counter(preds.tolist())
+    print("📊 Prediction distribution:", pred_counts)
+
+    print("🧪 Inspecting votes for first antigen:")
+    for i, ab in enumerate(antibodies):
+        print(
+            f"Antibody Label: {ab.label}, Recognizes First Antigen: {recognized[i, 0].item()}, Accuracy: {ab.accuracy:.2f}"
+        )
+
+    if forced_coverage and no_votes.any():
+        unclassified = torch.nonzero(no_votes, as_tuple=True)[0]
+        for i in unclassified:
+            antigen = antigens[i]
+            min_distance = float("inf")
+            closest_label = -1
+            for antibody in antibodies:
+                distance = antibody.scaled_distance(antigen)
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_label = antibody.label
+            preds[i] = closest_label
+        if not forced_coverage:
+            preds[no_votes] = -1
+    print("🧪 Inspecting votes for first antigen:")
+    for ab in antibodies:
+        print(
+            f"Antibody Label: {ab.label}, Recognizes First Antigen: {ab.is_recognized(antigens[0])}, Accuracy: {ab.accuracy:.2f}"
+        )
+
+    return preds
+
+    # for antibody in antibodies:
+    #     if antibody.is_recognized(antigen):
+    #         votes[antibody.label] = votes.get(antibody.label, 0) + antibody.accuracy
+    # if not votes:
+    #     if forced_coverage:
+    #         closest = (None, 0)
+    #         for antibody in antibodies:
+    #             if closest[0] is None or antibody.scaled_distance(antigen) < closest[1]:
+    #                 closest = (antibody, antibody.scaled_distance(antigen))
+    #         return closest[0].label
+    #     else:
+    #         return -1
+    # if voting_method == "binary":
+    #     return max(votes, key=votes.get)
+    # elif voting_method == "continuous":
+    #     total_votes = sum(votes.values())
+    #     weighted_sum = sum(label * (votes[label] / total_votes) for label in votes)
+    #     return int(round(weighted_sum))
+    # else:
+    #     raise ValueError(f"Unknown voting method: {voting_method}")

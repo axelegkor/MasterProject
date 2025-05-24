@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-import numpy as np
+import torch
 
 @dataclass
 class Antigen:
     id: str
-    embedding: np.ndarray
+    embedding: torch.Tensor
     label: int
