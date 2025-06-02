@@ -7,6 +7,7 @@ import copy
 import torch
 
 
+# TODO: return full antigens, not just first 10
 # Function to load the training data into a list of Antigen objects
 def load_training_data(
     file_path: str,
@@ -26,7 +27,7 @@ def load_training_data(
         )
         antigens.append(antigen)
 
-    return antigens, embeddings.shape[1]
+    return antigens[:1000], embeddings.shape[1]
 
 
 # Helper function to determine the number of classes based on the dataset
@@ -39,6 +40,21 @@ def get_num_classes(dataset: str) -> int:
         return 3
     else:
         raise ValueError(f"Unknown dataset: {dataset}")
+
+
+# # Function to calculate the maximum radius for an antibody based on a point and a list of antigens
+# def max_radius(point: torch.Tensor, antigens: List[Antigen]) -> float:
+#     # Stack all antigen embeddings
+#     all_embeddings = torch.stack([antigen.embedding for antigen in antigens])
+
+#     # Compute distances from the point to all antigens
+#     distances = torch.linalg.vector_norm(all_embeddings - point, dim=1)
+
+#     # Determine the n-th nearest (0.1% of total antigens, at least 1)
+#     n = max(5, int(0.001 * len(antigens)))
+#     sorted_distances, _ = torch.sort(distances)
+
+#     return sorted_distances[n - 1].item()
 
 
 # Helper function to calculate the shortest distance between a point and an antigen with a different label
@@ -73,12 +89,15 @@ def random_initialisation(
         print(f"Initialising: {i + 1}/{population_size}", flush=True)
         center = torch.normal(mean=mean, std=std).to("cuda")
         label = torch.randint(0, num_classes, (1,)).item()
+        print(f"Label: {label}", flush=True)
+        print(f"Name : {i + 1}", flush=True)
         antibody = Antibody(
             id=str(uuid.uuid4()),
             center=center,
-            radii=max_radius(center, antigens, label),
+            radii=(max_radius(center, antigens, label)),
             multiplier=torch.ones(embedding_dim, device="cuda"),
             label=label,
+            name=i + 1,  # Optional name for the antibody
         )
         antibodies.append(antibody)
 
@@ -104,11 +123,16 @@ def antigen_based_initialisation(
             radii=max_radius(antigen.embedding, antigens, antigen.label),
             multiplier=torch.ones(embedding_dim, device="cuda"),
             label=antigen.label,
+            name=i + 1,  # Optional name for the antibody
         )
         antibodies.append(antibody)
         for i in range(len(antigens)):
             if antibody.is_recognized(antigens[i]):
                 coverage[i] += 1
+        print(f"Name : {antibody.name}", flush=True)
+        print(f"Label: {antibody.label}", flush=True)
+        print(f"Radii: {antibody.radii}", flush=True)
+
     return antibodies
 
 
@@ -156,7 +180,7 @@ def initialise_population(
 
 
 def shared_count(antibodies: List[Antibody], antigens: List[Antigen]) -> Dict[str, int]:
-    recognized = batch_is_recognized(antibodies, antigens)
+    recognized = batch_is_recognized(antibodies, antigens)[0]
     shared_counts = recognized.sum(dim=0)
     return {antigens[i].id: shared_counts[i].item() for i in range(len(antigens))}
 
@@ -209,7 +233,7 @@ def shared_count(antibodies: List[Antibody], antigens: List[Antigen]) -> Dict[st
 #             if (true_positives + false_negatives) > 0
 #             else 0
 #         )
-#         uniqueness = shared_affinity / true_positives if true_positives > 0 else 0
+#         uniqueness = shared_affinity / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
 #         fitness = (
 #             (correctness_weight * correctness)
 #             + (coverage_weight * coverage)
@@ -227,7 +251,7 @@ def fitness_of_antibodies_continuous_correctness(
     uniqueness_weight: float,
 ) -> Dict[str, float]:
 
-    recognized = batch_is_recognized(antibodies, antigens)
+    recognized = batch_is_recognized(antibodies, antigens)[0]
 
     shared_counts = recognized.sum(dim=0)
 
@@ -258,7 +282,7 @@ def fitness_of_antibodies_continuous_correctness(
             if (true_positives + false_negatives) > 0
             else 0
         )
-        uniqueness = shared_affinity / true_positives if true_positives > 0 else 0
+        uniqueness = shared_affinity / denom if denom > 0 else 0
 
         fitness = (
             correctness_weight * correctness
@@ -327,7 +351,7 @@ def fitness_of_antibodies_binary_correctness(
 ) -> Dict[str, float]:
 
     # Precompute recognition matrix
-    recognized = batch_is_recognized(antibodies, antigens)
+    recognized = batch_is_recognized(antibodies, antigens)[0]
     shared_counts = recognized.sum(dim=0)  # [N]
     antigen_labels = torch.tensor([a.label for a in antigens], device=recognized.device)
 
@@ -336,7 +360,7 @@ def fitness_of_antibodies_binary_correctness(
     for i, antibody in enumerate(antibodies):
         mask = recognized[i]
         correct_mask = antigen_labels == antibody.label
-
+        inv_recognitions = 1 / mask.sum().item()
         true_positives = (mask & correct_mask).sum().item()
         false_positives = (mask & ~correct_mask).sum().item()
         false_negatives = (~mask & correct_mask).sum().item()
@@ -349,17 +373,21 @@ def fitness_of_antibodies_binary_correctness(
             if denom > 0
             else 0
         )
+        if correctness < 0.15:
+            correctness = 0.15
         coverage = (
             true_positives / (true_positives + false_negatives)
             if (true_positives + false_negatives) > 0
             else 0
         )
-        uniqueness = shared_affinity / true_positives if true_positives > 0 else 0
-
+        uniqueness = shared_affinity / denom if denom > 0 else 0
+        in_interval = 1 / abs(antibody.radii - 15.5)
         fitness = (
             correctness_weight * correctness
             + coverage_weight * coverage
             + uniqueness_weight * uniqueness
+            + inv_recognitions * 0.5
+            + in_interval * 0.1
         )
         fitness_scores[antibody.id] = fitness
 
@@ -415,6 +443,7 @@ def center_mutation(
     movement[dim_mask] = torch.normal(
         mean=0, std=intensity, size=(int(dim_mask.sum().item()),), device="cuda"
     )
+    # print(f"Center mutation movement length: {torch.linalg.vector_norm(movement)}", flush=True)
     antibody.center_mutation(movement)
 
 
@@ -425,13 +454,16 @@ def radii_mutation(
     radii_mutation_intensity: float,
     min_radii_mutation: float,
     max_radii_mutation: float,
+    center_std: float,
 ) -> None:
-    intensity = fitness_scaling * radii_mutation_intensity
+    intensity = fitness_scaling * radii_mutation_intensity * center_std
     change = (
         torch.normal(mean=1, std=intensity, size=(1,), device="cuda")
         .clamp(min=min_radii_mutation, max=max_radii_mutation)
         .item()
     )
+    # print(f"Radii intensity: {intensity}", flush=True)
+    # print(f"Radii mutation change: {change}", flush=True)
     antibody.radii_mutation(change)
 
 
@@ -441,14 +473,20 @@ def multiplier_mutation(
     fitness_scaling: float,
     multiplier_mutation_intensity: float,
     multiplier_mutation_dimensions: float,
+    min_radii_mutation: float,
+    max_radii_mutation: float,
 ) -> None:
     embedding_dim = antibody.multiplier.shape[0]
     intensity = fitness_scaling * multiplier_mutation_intensity
     change = torch.ones(embedding_dim, device="cuda")
     dim_mask = torch.rand(embedding_dim, device="cuda") < multiplier_mutation_dimensions
     change[dim_mask] = torch.normal(
-        mean=1, std=intensity, size=dim_mask.sum().item(), device="cuda"
-    )
+        mean=1.0,
+        std=float(intensity),
+        size=(int(dim_mask.sum().item()),),
+        device="cuda",
+    ).clamp(min=min_radii_mutation, max=max_radii_mutation)
+    # print(f"Multiplier change: {change}", flush=True)
     antibody.multiplier_mutation(change)
 
 
@@ -484,44 +522,45 @@ def crowding(
     print(
         f"Performing crowding with replacement ratio: {replacement_ratio}", flush=True
     )
-    antibodies_eligible = antibodies.copy()
-    updated_antibodies = antibodies.copy()
-    num_replacements = int(len(antibodies) * replacement_ratio)
+
+    population = antibodies.copy()
+    indexed_population = list(enumerate(population))
+    num_replacements = int(len(population) * replacement_ratio)
     avg_fitness = (
         torch.tensor(list(fitness_scores.values()), device="cuda").mean().item()
     )
-    for i in range(num_replacements):
-        index = torch.randint(0, len(antibodies_eligible), (1,)).item()
-        antibody = antibodies_eligible[index]
-        antibodies_eligible.pop(index)
-        fitness = fitness_scores[antibody.id]
-        value = avg_fitness / (fitness + 1e-8)
-        fitness_scaling = max(min(value, max_fitness_scaling), min_fitness_scaling)
-        clones = [antibody]
+
+    for _ in range(num_replacements):
+        rand_idx = torch.randint(0, len(indexed_population), (1,)).item()
+        true_index, parent = indexed_population.pop(rand_idx)
+
+        parent_fitness = fitness_scores[parent.id]
+        scaling = avg_fitness / (parent_fitness + 1e-8)
+        scaling = max(min(scaling, max_fitness_scaling), min_fitness_scaling)
+
+        clones = [parent]
         for _ in range(num_clones):
             clone = Antibody(
                 id=str(uuid.uuid4()),
-                center=antibody.center.clone(),
-                radii=antibody.radii,
-                multiplier=antibody.multiplier.clone(),
-                label=antibody.label,
+                center=parent.center.clone(),
+                radii=parent.radii,
+                multiplier=parent.multiplier.clone(),
+                label=parent.label,
+                name=parent.name,
             )
-            clone.id = str(uuid.uuid4())
-            probabilities = torch.tensor(
-                [
-                    center_mutation_rate,
-                    radii_mutation_rate,
-                    multiplier_mutation_rate,
-                ],
-                dtype=torch.float32,
+
+            mutation_probs = torch.tensor(
+                [center_mutation_rate, radii_mutation_rate, multiplier_mutation_rate],
                 device="cuda",
+                dtype=torch.float32,
             )
-            probabilities /= probabilities.sum()
-            mutation_type = torch.multinomial(probabilities, 1).item()
+            mutation_probs /= mutation_probs.sum()
+            mutation_type = torch.multinomial(mutation_probs, 1).item()
+
             if mutation_type == 0:
                 center_mutation(
                     antibody=clone,
-                    fitness_scaling=fitness_scaling,
+                    fitness_scaling=scaling,
                     center_std=center_std,
                     embedding_dim=embedding_dim,
                     center_mutation_intensity=center_mutation_intensity,
@@ -530,22 +569,25 @@ def crowding(
             elif mutation_type == 1:
                 radii_mutation(
                     antibody=clone,
-                    fitness_scaling=fitness_scaling,
+                    fitness_scaling=scaling,
                     radii_mutation_intensity=radii_mutation_intensity,
                     min_radii_mutation=min_radii_mutation,
                     max_radii_mutation=max_radii_mutation,
+                    center_std=center_std,
                 )
-            elif mutation_type == 1:
+            elif mutation_type == 2:
                 multiplier_mutation(
                     antibody=clone,
-                    fitness_scaling=fitness_scaling,
-                    embedding_dim=embedding_dim,
+                    fitness_scaling=scaling,
                     multiplier_mutation_intensity=multiplier_mutation_intensity,
                     multiplier_mutation_dimensions=multiplier_mutation_dimensions,
+                    min_radii_mutation=min_radii_mutation,
+                    max_radii_mutation=max_radii_mutation,
                 )
 
             clones.append(clone)
-        clone_fitness_scores = fitness_of_antibodies(
+
+        clone_scores = fitness_of_antibodies(
             antibodies=clones,
             antigens=antigens,
             correctness_type=correctness_type,
@@ -556,11 +598,18 @@ def crowding(
             correctness_exponent=correctness_exponent,
             error_scaling=error_scaling,
         )
-        best_clone_id = max(clone_fitness_scores, key=clone_fitness_scores.get)
-        best_clone = next(clone for clone in clones if clone.id == best_clone_id)
-        updated_antibodies[index] = best_clone
-    print("Crowding finished")
-    return updated_antibodies
+        best_id = max(clone_scores, key=clone_scores.get)
+        best_clone = next(clone for clone in clones if clone.id == best_id)
+
+        # print(
+        #     f"Replacing antibody {parent.name} (label {parent.label}) → clone {best_clone.name} (label {best_clone.label})",
+        #     flush=True,
+        # )
+
+        population[true_index] = best_clone
+
+    print("Crowding finished", flush=True)
+    return population
 
 
 # def coverage(antibodies: List[Antibody], antigens: List[Antigen]) -> torch.Tensor:
@@ -573,7 +622,7 @@ def crowding(
 
 
 def coverage(antibodies: List[Antibody], antigens: List[Antigen]) -> torch.Tensor:
-    recognized = batch_is_recognized(antibodies, antigens)
+    recognized = batch_is_recognized(antibodies, antigens)[0]
     return recognized.sum(dim=0).float()
 
 
@@ -589,7 +638,7 @@ def coverage(antibodies: List[Antibody], antigens: List[Antigen]) -> torch.Tenso
 
 
 def accuracies(antibodies: List[Antibody], antigens: List[Antigen]) -> List[float]:
-    recognized = batch_is_recognized(antibodies, antigens)
+    recognized = batch_is_recognized(antibodies, antigens)[0]
     antigen_labels = torch.tensor(
         [antigen.label for antigen in antigens], device=recognized.device
     )
@@ -625,6 +674,7 @@ def train(config) -> List[Antibody]:
     # Load training data
     print(f"📥 Loading training data from: {input_file_path}")
     antigens, embedding_dim = load_training_data(input_file_path)
+
     print(
         f"✅ Loaded {len(antigens)} antigens with embedding dimension {embedding_dim}"
     )
@@ -707,22 +757,22 @@ def train(config) -> List[Antibody]:
             error_scaling=config["ERROR_SCALING"],
         )
 
-        # Leaking mechanism
-        if (
-            config["TOTAL_LEAKING"] != 0
-            and generation % config["LEAKING_FREQUENCY"] == 0
-        ):
-            leaking_population = initialise_population(
-                antigens=antigens,
-                population_size=leaking_per_generation,
-                initialisation_method=config["INITIALISATION_METHOD"],
-                coverage=coverage(population, antigens),
-                mean=mean,
-                std=std,
-                embedding_dim=embedding_dim,
-                num_classes=num_classes,
-            )
-            population.extend(leaking_population)
+        # # Leaking mechanism
+        # if (
+        #     config["TOTAL_LEAKING"] != 0
+        #     and generation % config["LEAKING_FREQUENCY"] == 0
+        # ):
+        #     leaking_population = initialise_population(
+        #         antigens=antigens,
+        #         population_size=leaking_per_generation,
+        #         initialisation_method=config["INITIALISATION_METHOD"],
+        #         coverage=coverage(population, antigens),
+        #         mean=mean,
+        #         std=std,
+        #         embedding_dim=embedding_dim,
+        #         num_classes=num_classes,
+        #     )
+        #     population.extend(leaking_population)
     print("calculating accuracies", flush=True)
     accuracies_list = accuracies(population, antigens)
     for antibody, accuracy in zip(population, accuracies_list):

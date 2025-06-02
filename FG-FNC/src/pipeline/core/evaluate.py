@@ -51,7 +51,7 @@ def load_test_data() -> List[Antigen]:
 
 
 def write_stat_block(f, title: str, values: List[float]):
-    t = torch.tensor(values)
+    t = torch.tensor(values, dtype=torch.float32)  # ✅ force float dtype
     f.write(f"{title}:\n")
     f.write(f"{'Mean':<20}{t.mean().item():.4f}\n")
     f.write(f"{'Max':<20}{t.max().item():.4f}\n")
@@ -65,7 +65,8 @@ def evaluate():
     avg_misses = []
     coverages = []
     time_consumptions = []
-    for i in range(1):
+    all_pred_counts = []
+    for i in range(3):
         start_time = time.time()
         print("Evaluating run " + str(i + 1) + "/20", flush=True)
         antibodies = train(config=config)
@@ -78,6 +79,10 @@ def evaluate():
             forced_coverage=config["FORCED_COVERAGE"],
             num_classes=get_num_classes(config["DATASET"]),
         )
+        from collections import Counter
+
+        pred_counts = Counter(predictions.tolist())
+        all_pred_counts.append(pred_counts)
 
         correct = 0
         misses = 0
@@ -146,6 +151,7 @@ def evaluate():
         f.write(f"Dimensionality Reduction: {config['DIMENSIONALITY_REDUCTION']}\n")
 
         f.write("=== Per-Run Evaluation Results ===\n\n")
+
         f.write(
             f"{'Run':<5}{'Accuracy':>12}{'Avg Misses':>15}{'Coverage':>18}{'Time (s)':>14}\n"
         )
@@ -154,6 +160,12 @@ def evaluate():
             f.write(
                 f"{i+1:<5}{accuracies[i]:>12.4f}{avg_misses[i]:>15.4f}{coverages[i]:>18.4f}{time_consumptions[i]:>14.4f}\n"
             )
+        f.write("\n=== Prediction Counts ===\n\n")
+        for i, pred_counts in enumerate(all_pred_counts):
+            f.write(f"Run {i + 1}:\n")
+            for label, count in sorted(pred_counts.items()):
+                f.write(f"Label {label}: {count}\n")
+            f.write("\n")
 
 
 evaluate()

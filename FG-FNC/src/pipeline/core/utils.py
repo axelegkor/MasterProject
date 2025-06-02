@@ -13,4 +13,4 @@ def batch_is_recognized(
     E = torch.stack([antigen.embedding for antigen in antigens])
     diff = (E[None, :, :] - C[:, None, :]) / M[:, None, :]
     distances = torch.linalg.vector_norm(diff, dim=2)
-    return distances <= R[:, None]
+    return distances <= R[:, None], distances, R
