@@ -66,7 +66,7 @@ def evaluate():
     coverages = []
     time_consumptions = []
     all_pred_counts = []
-    for i in range(3):
+    for i in range(20):
         start_time = time.time()
         print("Evaluating run " + str(i + 1) + "/20", flush=True)
         antibodies = train(config=config)

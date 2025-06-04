@@ -12,4 +12,4 @@ rsync -av --delete \
   --exclude="venv/" \
   --exclude="sync-to-idun.sh" \
   ~/dev/MasterProject/FG-FNC/ \
-  axelle@idun.hpc.ntnu.no:/cluster/home/axelle/FG-FNC
+  axelle@idun-login2.hpc.ntnu.no:/cluster/home/axelle/FG-FNC

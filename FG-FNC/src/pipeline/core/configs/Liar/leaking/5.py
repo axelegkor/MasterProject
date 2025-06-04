@@ -1,12 +1,12 @@
-EXPERIMENT = "voting"
-NAME = "continuous"
+EXPERIMENT = "leaking"
+NAME = "5"
 
-DATASET = "Politifact"  # Options: "Liar", "Politifact", "Averitec"
+DATASET = "Liar"  # Options: "Liar", "Politifact", "Averitec"
 
 # Varying hyperparameters
 CORRECTNESS_TYPE = "continuous"  # Options: "continuous", "binary"
 
-VOTING_METHOD = "continuous"  # Options: "continuous", "binary"
+VOTING_METHOD = "binary"  # Options: "continuous", "binary"
 
 INITIALISATION_METHOD = "antigen_based"  # Options: "random", "antigen_based"
 
@@ -14,7 +14,7 @@ POPULATION_SIZE = (
     0.01  # Initial population size as a fraction of the training data size
 )
 
-TOTAL_LEAKING = 0.2  # Total leaking ratio compared to the population size
+TOTAL_LEAKING = 0.5  # Total leaking ratio compared to the population size
 
 FORCED_COVERAGE = False  # Whether to force coverage or not
 

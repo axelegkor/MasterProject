@@ -1,4 +1,4 @@
-EXPERIMENT = "voting"
+EXPERIMENT = "correctness"
 NAME = "continuous"
 
 DATASET = "Politifact"  # Options: "Liar", "Politifact", "Averitec"
@@ -6,7 +6,7 @@ DATASET = "Politifact"  # Options: "Liar", "Politifact", "Averitec"
 # Varying hyperparameters
 CORRECTNESS_TYPE = "continuous"  # Options: "continuous", "binary"
 
-VOTING_METHOD = "continuous"  # Options: "continuous", "binary"
+VOTING_METHOD = "binary"  # Options: "continuous", "binary"
 
 INITIALISATION_METHOD = "antigen_based"  # Options: "random", "antigen_based"
 

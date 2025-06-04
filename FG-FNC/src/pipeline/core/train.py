@@ -7,10 +7,10 @@ import copy
 import torch
 
 
-# TODO: return full antigens, not just first 10
 # Function to load the training data into a list of Antigen objects
 def load_training_data(
     file_path: str,
+    max_dataset_size: int,
 ) -> Tuple[List[Antigen], float]:
     data = torch.load(file_path)
 
@@ -18,8 +18,11 @@ def load_training_data(
     embeddings = data["embedding"]
     labels = data["label"]
 
+    num_samples = min(max_dataset_size, len(ids))
+    indices = torch.randperm(len(ids))[:num_samples]
+
     antigens = []
-    for i in range(len(ids)):
+    for i in indices:
         antigen = Antigen(
             id=ids[i],
             embedding=embeddings[i].to("cuda"),
@@ -27,7 +30,7 @@ def load_training_data(
         )
         antigens.append(antigen)
 
-    return antigens[:1000], embeddings.shape[1]
+    return antigens, embeddings.shape[1]
 
 
 # Helper function to determine the number of classes based on the dataset
@@ -115,6 +118,7 @@ def antigen_based_initialisation(
         print(f"Initialising: {i + 1}/{population_size}", flush=True)
         probabilities = 1 / coverage
         probabilities /= probabilities.sum()
+
         index = torch.multinomial(probabilities, 1).item()
         antigen = antigens[index]
         antibody = Antibody(
@@ -241,57 +245,6 @@ def shared_count(antibodies: List[Antibody], antigens: List[Antigen]) -> Dict[st
 #         )
 #         fitness_scores[antibody.id] = fitness
 #     return fitness_scores
-def fitness_of_antibodies_continuous_correctness(
-    antibodies: List[Antibody],
-    antigens: List[Antigen],
-    num_classes: int,
-    correctness_exponent: float,
-    correctness_weight: float,
-    coverage_weight: float,
-    uniqueness_weight: float,
-) -> Dict[str, float]:
-
-    recognized = batch_is_recognized(antibodies, antigens)[0]
-
-    shared_counts = recognized.sum(dim=0)
-
-    antigen_labels = torch.tensor([a.label for a in antigens], device=recognized.device)
-    fitness_scores = {}
-
-    for i, antibody in enumerate(antibodies):
-
-        mask = recognized[i]
-        correct_mask = antigen_labels == antibody.label
-
-        true_positives = (mask & correct_mask).sum().item()
-        false_positives = (mask & ~correct_mask).sum().item()
-        false_negatives = (~mask & correct_mask).sum().item()
-
-        distances = 1 - (
-            (torch.abs(antigen_labels - antibody.label) / (num_classes - 1))
-            ** correctness_exponent
-        )
-        correctness_count = distances[mask].sum().item()
-
-        shared_affinity = (1 / shared_counts[mask]).sum().item() if mask.any() else 0
-
-        denom = true_positives + false_positives
-        correctness = correctness_count / denom if denom > 0 else 0
-        coverage = (
-            true_positives / (true_positives + false_negatives)
-            if (true_positives + false_negatives) > 0
-            else 0
-        )
-        uniqueness = shared_affinity / denom if denom > 0 else 0
-
-        fitness = (
-            correctness_weight * correctness
-            + coverage_weight * coverage
-            + uniqueness_weight * uniqueness
-        )
-        fitness_scores[antibody.id] = fitness
-
-    return fitness_scores
 
 
 # Function to calculate the correctness of antibodies
@@ -341,13 +294,115 @@ def fitness_of_antibodies_continuous_correctness(
 #     return fitness_scores
 
 
-def fitness_of_antibodies_binary_correctness(
+# def fitness_of_antibodies_binary_correctness(
+#     antibodies: List[Antibody],
+#     antigens: List[Antigen],
+#     error_scaling: float,
+#     correctness_weight: float,
+#     coverage_weight: float,
+#     uniqueness_weight: float,
+#     average_radii_approximation_weight: float,
+#     avg_distance: float,
+# ) -> Dict[str, float]:
+
+#     # Precompute recognition matrix
+#     recognized = batch_is_recognized(antibodies, antigens)[0]
+#     shared_counts = recognized.sum(dim=0)  # [N]
+#     antigen_labels = torch.tensor([a.label for a in antigens], device=recognized.device)
+
+#     fitness_scores = {}
+
+#     for i, antibody in enumerate(antibodies):
+#         mask = recognized[i]
+#         correct_mask = antigen_labels == antibody.label
+#         true_positives = (mask & correct_mask).sum().item()
+#         false_positives = (mask & ~correct_mask).sum().item()
+#         false_negatives = (~mask & correct_mask).sum().item()
+
+#         shared_affinity = (1 / shared_counts[mask]).sum().item() if mask.any() else 0
+
+#         denom = true_positives + false_positives
+#         correctness = (true_positives) / denom if denom > 0 else 0
+#         if correctness < 0.15:
+#             correctness = 0.15
+#         coverage = (
+#             true_positives / (true_positives + false_negatives)
+#             if (true_positives + false_negatives) > 0
+#             else 0
+#         )
+#         uniqueness = shared_affinity / denom if denom > 0 else 0
+#         average_radii_approximation = 1 - (
+#             (abs(antibody.radii - (avg_distance - (0.1 * avg_distance)))) / avg_distance
+#         )
+#         fitness = (
+#             correctness_weight * correctness
+#             + coverage_weight * coverage
+#             + uniqueness_weight * uniqueness
+#             + average_radii_approximation_weight * average_radii_approximation
+#         )
+#         # print("Correctness:", correctness_weight * correctness, flush=True)
+#         # print("Coverage:", coverage_weight * coverage, flush=True)
+#         # print("Uniqueness:", uniqueness_weight * uniqueness, flush=True)
+#         fitness_scores[antibody.id] = fitness
+
+#     return fitness_scores
+
+# def fitness_of_antibodies_continuous_correctness(
+#     antibodies: List[Antibody],
+#     antigens: List[Antigen],
+#     num_classes: int,
+#     correctness_exponent: float,
+#     correctness_weight: float,
+#     coverage_weight: float,
+#     uniqueness_weight: float,
+# ) -> Dict[str, float]:
+
+#     recognized = batch_is_recognized(antibodies, antigens)[0]
+
+#     shared_counts = recognized.sum(dim=0)
+
+#     antigen_labels = torch.tensor([a.label for a in antigens], device=recognized.device)
+#     fitness_scores = {}
+
+#     for i, antibody in enumerate(antibodies):
+
+#         mask = recognized[i]
+#         correct_mask = antigen_labels == antibody.label
+
+#         true_positives = (mask & correct_mask).sum().item()
+#         false_positives = (mask & ~correct_mask).sum().item()
+#         false_negatives = (~mask & correct_mask).sum().item()
+
+
+#         coverage = (
+#             true_positives / (true_positives + false_negatives)
+#             if (true_positives + false_negatives) > 0
+#             else 0
+#         )
+#         uniqueness = shared_affinity / denom if denom > 0 else 0
+
+#         fitness = (
+#             correctness_weight * correctness
+#             + coverage_weight * coverage
+#             + uniqueness_weight * uniqueness
+#         )
+#         fitness_scores[antibody.id] = fitness
+
+#     return fitness_scores
+
+
+def fitness_of_antibodies(
     antibodies: List[Antibody],
     antigens: List[Antigen],
-    error_scaling: float,
+    num_classes: int,
     correctness_weight: float,
+    correctness_type: str,
+    correctness_exponent: float,
     coverage_weight: float,
     uniqueness_weight: float,
+    avg_radii_approximation_weight: float,
+    avg_offset: float,
+    avg_distance: float,
 ) -> Dict[str, float]:
 
     # Precompute recognition matrix
@@ -360,7 +415,6 @@ def fitness_of_antibodies_binary_correctness(
     for i, antibody in enumerate(antibodies):
         mask = recognized[i]
         correct_mask = antigen_labels == antibody.label
-        inv_recognitions = 1 / mask.sum().item()
         true_positives = (mask & correct_mask).sum().item()
         false_positives = (mask & ~correct_mask).sum().item()
         false_negatives = (~mask & correct_mask).sum().item()
@@ -368,64 +422,45 @@ def fitness_of_antibodies_binary_correctness(
         shared_affinity = (1 / shared_counts[mask]).sum().item() if mask.any() else 0
 
         denom = true_positives + false_positives
-        correctness = (
-            (true_positives - (false_positives * error_scaling)) / denom
-            if denom > 0
-            else 0
-        )
+
+        if correctness_type == "continuous":
+            distances = 1 - (
+                (torch.abs(antigen_labels - antibody.label) / (num_classes - 1))
+                ** correctness_exponent
+            )
+            correctness_count = distances[mask].sum().item()
+            correctness = correctness_count / denom if denom > 0 else 0
+
+        elif correctness_type == "binary":
+            correctness = (true_positives) / denom if denom > 0 else 0
+        else:
+            raise ValueError(f"Unknown correctness type: {correctness_type}")
+
         if correctness < 0.15:
             correctness = 0.15
+
         coverage = (
             true_positives / (true_positives + false_negatives)
             if (true_positives + false_negatives) > 0
             else 0
         )
         uniqueness = shared_affinity / denom if denom > 0 else 0
-        in_interval = 1 / abs(antibody.radii - 15.5)
+        avg_radii_approximation = 1 - (
+            (abs(antibody.radii - (avg_distance - (avg_offset * avg_distance))))
+            / avg_distance
+        )
         fitness = (
             correctness_weight * correctness
             + coverage_weight * coverage
             + uniqueness_weight * uniqueness
-            + inv_recognitions * 0.5
-            + in_interval * 0.1
+            + avg_radii_approximation_weight * avg_radii_approximation
         )
+        # print("Correctness:", correctness_weight * correctness, flush=True)
+        # print("Coverage:", coverage_weight * coverage, flush=True)
+        # print("Uniqueness:", uniqueness_weight * uniqueness, flush=True)
         fitness_scores[antibody.id] = fitness
 
     return fitness_scores
-
-
-def fitness_of_antibodies(
-    antibodies: List[Antibody],
-    antigens: List[Antigen],
-    correctness_type: str,
-    correctness_weight: float,
-    coverage_weight: float,
-    uniqueness_weight: float,
-    num_classes: int,
-    correctness_exponent: float,
-    error_scaling: float,
-) -> Dict[str, float]:
-    if correctness_type == "continuous":
-        return fitness_of_antibodies_continuous_correctness(
-            antibodies,
-            antigens,
-            num_classes=num_classes,
-            correctness_exponent=correctness_exponent,
-            correctness_weight=correctness_weight,
-            coverage_weight=coverage_weight,
-            uniqueness_weight=uniqueness_weight,
-        )
-    elif correctness_type == "binary":
-        return fitness_of_antibodies_binary_correctness(
-            antibodies,
-            antigens,
-            error_scaling=error_scaling,
-            correctness_weight=correctness_weight,
-            coverage_weight=coverage_weight,
-            uniqueness_weight=uniqueness_weight,
-        )
-    else:
-        raise ValueError(f"Unknown correctness type: {correctness_type}")
 
 
 # Function that performs center mutation on an antibody
@@ -517,7 +552,9 @@ def crowding(
     uniqueness_weight: float,
     num_classes: int,
     correctness_exponent: float,
-    error_scaling: float,
+    avg_radii_approximation_weight: float,
+    avg_offset: float,
+    avg_distance: float,
 ) -> List[Antibody]:
     print(
         f"Performing crowding with replacement ratio: {replacement_ratio}", flush=True
@@ -590,13 +627,15 @@ def crowding(
         clone_scores = fitness_of_antibodies(
             antibodies=clones,
             antigens=antigens,
-            correctness_type=correctness_type,
+            num_classes=num_classes,
             correctness_weight=correctness_weight,
+            correctness_type=correctness_type,
+            correctness_exponent=correctness_exponent,
             coverage_weight=coverage_weight,
             uniqueness_weight=uniqueness_weight,
-            num_classes=num_classes,
-            correctness_exponent=correctness_exponent,
-            error_scaling=error_scaling,
+            avg_radii_approximation_weight=avg_radii_approximation_weight,
+            avg_offset=avg_offset,
+            avg_distance=avg_distance,
         )
         best_id = max(clone_scores, key=clone_scores.get)
         best_clone = next(clone for clone in clones if clone.id == best_id)
@@ -623,7 +662,7 @@ def crowding(
 
 def coverage(antibodies: List[Antibody], antigens: List[Antigen]) -> torch.Tensor:
     recognized = batch_is_recognized(antibodies, antigens)[0]
-    return recognized.sum(dim=0).float()
+    return recognized.sum(dim=0).float() + 1
 
 
 # def accuracy(antibody: Antibody, antigens: List[Antigen]) -> float:
@@ -673,7 +712,9 @@ def train(config) -> List[Antibody]:
     )
     # Load training data
     print(f"📥 Loading training data from: {input_file_path}")
-    antigens, embedding_dim = load_training_data(input_file_path)
+    antigens, embedding_dim = load_training_data(
+        input_file_path, config["MAX_DATASET_SIZE"]
+    )
 
     print(
         f"✅ Loaded {len(antigens)} antigens with embedding dimension {embedding_dim}"
@@ -695,17 +736,21 @@ def train(config) -> List[Antibody]:
         embedding_dim=embedding_dim,
         num_classes=num_classes,
     )
+    print("center std", std)
+    distances = batch_is_recognized(population, antigens)[1]
+    avg_distance = distances.mean().item()
+    print(f"📏 Average distance between antibodies and antigens: {avg_distance:.4f}")
 
     print(f"👾 Initial population size: {len(population)}")
 
     total_leaking_amount = int(
-        round(config["POPULATION_SIZE"] * config["TOTAL_LEAKING"])
+        round(len(antigens) * config["POPULATION_SIZE"] * config["TOTAL_LEAKING"])
     )
 
     leaking_per_generation = int(
         round(
             total_leaking_amount
-            / (config["NUM_GENERATIONS"] / config["LEAKING_FREQUENCY"])
+            / ((config["NUM_GENERATIONS"] / config["LEAKING_FREQUENCY"]))
         )
     )
 
@@ -720,13 +765,15 @@ def train(config) -> List[Antibody]:
         fitness_scores = fitness_of_antibodies(
             antibodies=population,
             antigens=antigens,
-            correctness_type=config["CORRECTNESS_TYPE"],
+            num_classes=num_classes,
             correctness_weight=config["CORRECTNESS_WEIGHT"],
+            correctness_type=config["CORRECTNESS_TYPE"],
+            correctness_exponent=config["CORRECTNESS_EXPONENT"],
             coverage_weight=config["COVERAGE_WEIGHT"],
             uniqueness_weight=config["UNIQUENESS_WEIGHT"],
-            num_classes=num_classes,
-            correctness_exponent=config["CORRECTNESS_EXPONENT"],
-            error_scaling=config["ERROR_SCALING"],
+            avg_radii_approximation_weight=config["AVERAGE_RADII_APPROXIMATION_WEIGHT"],
+            avg_offset=config["AVERAGE_OFFSET"],
+            avg_distance=avg_distance,
         )
         population = crowding(
             antibodies=population,
@@ -754,25 +801,30 @@ def train(config) -> List[Antibody]:
             uniqueness_weight=config["UNIQUENESS_WEIGHT"],
             num_classes=num_classes,
             correctness_exponent=config["CORRECTNESS_EXPONENT"],
-            error_scaling=config["ERROR_SCALING"],
+            avg_radii_approximation_weight=config["AVERAGE_RADII_APPROXIMATION_WEIGHT"],
+            avg_offset=config["AVERAGE_OFFSET"],
+            avg_distance=avg_distance,
         )
 
-        # # Leaking mechanism
-        # if (
-        #     config["TOTAL_LEAKING"] != 0
-        #     and generation % config["LEAKING_FREQUENCY"] == 0
-        # ):
-        #     leaking_population = initialise_population(
-        #         antigens=antigens,
-        #         population_size=leaking_per_generation,
-        #         initialisation_method=config["INITIALISATION_METHOD"],
-        #         coverage=coverage(population, antigens),
-        #         mean=mean,
-        #         std=std,
-        #         embedding_dim=embedding_dim,
-        #         num_classes=num_classes,
-        #     )
-        #     population.extend(leaking_population)
+        # Leaking mechanism
+        if (
+            config["TOTAL_LEAKING"] != 0
+            and generation % config["LEAKING_FREQUENCY"] == 0
+        ):
+            print(
+                f"💧 Leaking {leaking_per_generation} antibodies into the population",
+            )
+            leaking_population = initialise_population(
+                antigens=antigens,
+                population_size=leaking_per_generation,
+                initialisation_method=config["INITIALISATION_METHOD"],
+                coverage=coverage(population, antigens),
+                mean=mean,
+                std=std,
+                embedding_dim=embedding_dim,
+                num_classes=num_classes,
+            )
+            population.extend(leaking_population)
     print("calculating accuracies", flush=True)
     accuracies_list = accuracies(population, antigens)
     for antibody, accuracy in zip(population, accuracies_list):

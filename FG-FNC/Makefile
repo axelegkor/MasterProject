@@ -1,6 +1,6 @@
 # === Config ===
 USER = axelle
-HOST = idun.hpc.ntnu.no
+HOST = idun-login2.hpc.ntnu.no
 REMOTE_PATH = FG-FNC
 VENV_PATH = ~/venvs/fgfnc-venv
 
