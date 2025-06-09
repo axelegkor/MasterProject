@@ -1,7 +1,7 @@
 EXPERIMENT = "whitening"
-NAME = "nw"
+NAME = "64"
 
-DATASET = "Liar"  # Options: "Liar", "Politifact", "Averitec"
+DATASET = "Politifact"  # Options: "Liar", "Politifact", "Averitec"
 
 # Varying hyperparameters
 CORRECTNESS_TYPE = "continuous"  # Options: "continuous", "binary"
@@ -18,8 +18,8 @@ TOTAL_LEAKING = 1.0  # Total leaking ratio compared to the population size
 
 FORCED_COVERAGE = False  # Whether to force coverage or not
 
-WHITENING = False  # Whether to use whitening or not
-DIMENSIONALITY_REDUCTION = 384  # Dimensionality reduction for the embeddings
+WHITENING = True  # Whether to use whitening or not
+DIMENSIONALITY_REDUCTION = 64  # Dimensionality reduction for the embeddings
 
 
 # Permanent hyperparameters

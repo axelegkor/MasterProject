@@ -1,7 +1,7 @@
 EXPERIMENT = "whitening"
 NAME = "nw"
 
-DATASET = "Liar"  # Options: "Liar", "Politifact", "Averitec"
+DATASET = "Politifact"  # Options: "Liar", "Politifact", "Averitec"
 
 # Varying hyperparameters
 CORRECTNESS_TYPE = "continuous"  # Options: "continuous", "binary"

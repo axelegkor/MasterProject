@@ -2,16 +2,17 @@
 import matplotlib.pyplot as plt
 
 # Values for A
-avg_A = 0.2033
-std_A = 0.0101
-min_A = 0.1875
-max_A = 0.2217
+avg_A = 0.2328
+max_A = 0.2724
+min_A = 0.1680
+std_A = 0.0363
 
 # Values for B
-avg_B = 0.1936
-std_B = 0.0130
-min_B = 0.1697
-max_B = 0.2112
+avg_B = 0.2427
+max_B = 0.2737
+min_B = 0.1706
+std_B = 0.0267
+
 
 # Setup
 fig, ax = plt.subplots(figsize=(8, 6))  # Wider for two plots
@@ -59,9 +60,9 @@ draw_stat_box(ax, positions[1], avg_B, std_B, min_B, max_B)
 # Formatting
 ax.set_xlim(0.5, 2.5)
 ax.set_xticks(positions)
-ax.set_xticklabels(["Continuous", "Binary"])
+ax.set_xticklabels(["Disabled", "Enabled"])
 ax.set_ylabel("Accuracy")
-ax.set_title("Correctness - Liar")
+ax.set_title("Forced Coverage - Politifact")
 
 # Only show one legend entry
 ax.plot([], [], color="blue", linewidth=2, label="Average")

@@ -61,7 +61,7 @@ ax.set_xlim(0.5, 2.5)
 ax.set_xticks(positions)
 ax.set_xticklabels(["Continuous", "Binary"])
 ax.set_ylabel("Accuracy")
-ax.set_title("Politifact")
+ax.set_title("Correctness - Politifact")
 
 # Only show one legend entry
 ax.plot([], [], color="blue", linewidth=2, label="Average")
